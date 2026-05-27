@@ -1,0 +1,206 @@
+{
+  "name": "cleanscribe-vscode",
+  "displayName": "CleanScribe — AI Compliance Sensor",
+  "description": "Real-time copyleft, license violation, PII, and prompt injection detection for your code. Powered by the CleanScribe scanning engine.",
+  "version": "1.0.0",
+  "publisher": "omnishield",
+  "icon": "assets/icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/omnishield/cleanscribe-vscode"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "copyleft",
+    "GPL",
+    "license",
+    "compliance",
+    "DLP",
+    "security",
+    "PII",
+    "secrets",
+    "cleanscribe",
+    "omnishield"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:python",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "cleanScribe.requestFix",
+        "title": "CleanScribe: Request AI Refactor Fix",
+        "category": "CleanScribe",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "cleanScribe.showOutputChannel",
+        "title": "CleanScribe: Show Output Channel",
+        "category": "CleanScribe",
+        "icon": "$(output)"
+      },
+      {
+        "command": "cleanScribe.clearDiagnostics",
+        "title": "CleanScribe: Clear All Diagnostics",
+        "category": "CleanScribe",
+        "icon": "$(clear-all)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "cleanScribe.requestFix",
+        "key": "ctrl+shift+f9",
+        "mac": "cmd+shift+f9",
+        "when": "editorFocus"
+      },
+      {
+        "command": "cleanScribe.clearDiagnostics",
+        "key": "ctrl+shift+f10",
+        "mac": "cmd+shift+f10"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "cleanScribe.requestFix",
+          "when": "editorFocus && resourceLangId =~ /javascript|typescript|python/",
+          "group": "cleanscribe@1"
+        },
+        {
+          "command": "cleanScribe.clearDiagnostics",
+          "when": "editorFocus",
+          "group": "cleanscribe@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "cleanScribe.requestFix",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "cleanScribe.showOutputChannel"
+        },
+        {
+          "command": "cleanScribe.clearDiagnostics"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "CleanScribe",
+      "properties": {
+        "cleanScribe.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable CleanScribe scanning on file save."
+        },
+        "cleanScribe.licenseThreshold": {
+          "type": "number",
+          "default": 0.75,
+          "minimum": 0.5,
+          "maximum": 1,
+          "description": "Jaccard similarity threshold for structural license matching (0.75 = 75%). Increase to reduce false positives."
+        },
+        "cleanScribe.showNotificationsForSeverity": {
+          "type": "string",
+          "enum": [
+            "CRITICAL",
+            "HIGH",
+            "MEDIUM",
+            "ALL",
+            "NONE"
+          ],
+          "default": "CRITICAL",
+          "description": "Minimum severity level that triggers a VS Code notification toast."
+        },
+        "cleanScribe.scanOnOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan the active file when the extension first activates."
+        },
+        "cleanScribe.supportedLanguages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "javascript",
+            "typescript",
+            "python",
+            "javascriptreact",
+            "typescriptreact"
+          ],
+          "description": "List of VS Code languageIds to scan. Files in other languages are ignored."
+        },
+        "cleanScribe.ollamaModel": {
+          "type": "string",
+          "default": "qwen2.5:1.5b",
+          "description": "Ollama model tag used to generate AI-powered fix prompts. Must be pulled locally (e.g. 'ollama pull qwen2.5:1.5b')."
+        },
+        "cleanScribe.ollamaHost": {
+          "type": "string",
+          "default": "localhost",
+          "description": "Hostname of the local Ollama server. Change if running Ollama in a container or on a remote machine."
+        },
+        "cleanScribe.ollamaPort": {
+          "type": "number",
+          "default": 11434,
+          "description": "Port of the local Ollama server."
+        },
+        "cleanScribe.ollamaTimeout": {
+          "type": "number",
+          "default": 20000,
+          "minimum": 5000,
+          "maximum": 120000,
+          "description": "Maximum time in milliseconds to wait for Qwen to generate the fix prompt before falling back to the built-in template."
+        }
+      }
+    },
+    "colors": [
+      {
+        "id": "cleanScribe.criticalBorder",
+        "description": "Color of the left border decoration on CRITICAL violation lines.",
+        "defaults": {
+          "dark": "#FF2D55",
+          "light": "#CC0033",
+          "highContrast": "#FF0000"
+        }
+      },
+      {
+        "id": "cleanScribe.warningBorder",
+        "description": "Color of the left border decoration on WARNING violation lines.",
+        "defaults": {
+          "dark": "#FFD60A",
+          "light": "#CC9900",
+          "highContrast": "#FFFF00"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "echo 'No build step required'",
+    "lint": "eslint extension.js cleanScribeCore.js",
+    "test": "node ./test/runTests.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.4.0",
+    "eslint": "^8.57.0",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "acorn": "^8.16.0"
+  }
+}
