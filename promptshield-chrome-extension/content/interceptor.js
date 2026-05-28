@@ -32,17 +32,17 @@
     if (text === PromptShield.lastSanitizedText) return false;
 
     const placeholderValues = new Set([
-      '[API-KEY-REDACTED]',
-      'user@redacted.com',
-      'XXX-XX-XXXX',
-      '+X-XXX-XXX-XXXX',
-      '[PASSWORD-REDACTED]',
-      '[NAME-REDACTED]',
-      '[DB-URL-REDACTED]',
-      '0.0.0.0',
-      'XXXX-XXXX-XXXX-XXXX',
-      '[SECRET-REDACTED]',
-      '[REDACTED]'
+      // existing
+      '[API-KEY-REDACTED]', 'user@redacted.com', 'XXX-XX-XXXX',
+      '+X-XXX-XXX-XXXX', '[PASSWORD-REDACTED]', '[NAME-REDACTED]',
+      '[DB-URL-REDACTED]', '0.0.0.0', 'XXXX-XXXX-XXXX-XXXX',
+      '[SECRET-REDACTED]', '[REDACTED]',
+      // new
+      '::redacted', '[DOB-REDACTED]', '[PASSPORT-REDACTED]', '[DL-REDACTED]',
+      '[ACCOUNT-REDACTED]', '[ROUTING-REDACTED]', '[IBAN-REDACTED]',
+      '[SWIFT-REDACTED]', '[EIN-REDACTED]', '[MRN-REDACTED]',
+      '[NPI-REDACTED]', '[INSURANCE-ID-REDACTED]', '[DIAGNOSIS-REDACTED]',
+      '[MEDICATION-REDACTED]', '[LAB-VALUE-REDACTED]'
     ]);
     const entities = [
       ...PromptShield.scanWithRegex(text),
