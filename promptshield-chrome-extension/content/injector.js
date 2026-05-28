@@ -68,6 +68,7 @@
   async function autoSubmit(platform) {
     await wait(200);
 
+    // First attempt — button may already be enabled
     const sendBtn = findSendButton(true);
     if (sendBtn && !sendBtn.disabled) {
       sendBtn.click();
@@ -75,56 +76,60 @@
     }
 
     const inputEl = getSubmitInput(platform);
+    if (!inputEl) return 'failed';
 
-    if (inputEl) {
-      inputEl.dispatchEvent(new Event('focus', { bubbles: true }));
-      inputEl.dispatchEvent(
-        new InputEvent('input', {
-          inputType: 'insertText',
-          bubbles: true,
-          cancelable: true,
-          composed: true
-        })
-      );
-      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    // Re-fire the full React sync event chain with the current text,
+    // so Gemini's internal state recognises the injected content
+    const currentText = inputEl.innerText || inputEl.textContent || '';
+    inputEl.dispatchEvent(new Event('focus', { bubbles: true }));
+    inputEl.dispatchEvent(
+      new InputEvent('input', {
+        inputType: 'insertText',
+        data: currentText,
+        bubbles: true,
+        cancelable: true,
+        composed: true
+      })
+    );
+    inputEl.dispatchEvent(new Event('change', { bubbles: true }));
 
-      await wait(200);
-
-      const retryBtn = findSendButton(false);
+    // Poll for up to 1 second (10 × 100 ms) for the button to become enabled
+    for (let i = 0; i < 10; i++) {
+      await wait(100);
+      const retryBtn = findSendButton(true);
       if (retryBtn && !retryBtn.disabled) {
         retryBtn.click();
         return 'button-retry';
       }
-
-      inputEl.dispatchEvent(
-        new KeyboardEvent('keydown', {
-          key: 'Enter',
-          code: 'Enter',
-          keyCode: 13,
-          which: 13,
-          bubbles: true,
-          cancelable: true,
-          composed: true
-        })
-      );
-
-      await wait(50);
-
-      inputEl.dispatchEvent(
-        new KeyboardEvent('keyup', {
-          key: 'Enter',
-          code: 'Enter',
-          keyCode: 13,
-          which: 13,
-          bubbles: true,
-          composed: true
-        })
-      );
-
-      return 'keydown';
     }
 
-    return 'failed';
+    // Last resort — simulate Enter on the input element
+    inputEl.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true,
+        composed: true
+      })
+    );
+
+    await wait(50);
+
+    inputEl.dispatchEvent(
+      new KeyboardEvent('keyup', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        composed: true
+      })
+    );
+
+    return 'keydown';
   }
 
   PromptShield.injectSanitizedText = injectSanitizedText;
