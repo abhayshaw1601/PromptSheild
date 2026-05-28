@@ -1,941 +1,419 @@
-# PromptShield AI - Complete Technical Context & Reference Guide
+# PromptShield Technical Context
 
-This document provides comprehensive technical specifications, database schemas, API definitions, and implementation details for the PromptShield codebase. Use this as the authoritative reference for developers and AI coding assistants.
+This file is the handoff reference for future agents and developers working in this repository. It records the current architecture, important implementation details, validation status, and recent changes.
 
----
+Last updated: May 28, 2026
 
-## 📋 Table of Contents
+## Current Repository State
 
-1. [Project Overview](#project-overview)
-2. [Folder Structure & File Manifest](#folder-structure--file-manifest)
-3. [Database Schemas](#database-schemas)
-4. [API Endpoints & Request/Response Specs](#api-endpoints--requestresponse-specs)
-5. [Configuration & Environment Variables](#configuration--environment-variables)
-6. [Security Pattern Matching](#security-pattern-matching)
-7. [License Detection Algorithm](#license-detection-algorithm)
-8. [Chrome Extension Architecture](#chrome-extension-architecture)
-9. [Backend Services Overview](#backend-services-overview)
-10. [SDK Module Reference](#sdk-module-reference)
-11. [Testing & Validation](#testing--validation)
-12. [Troubleshooting & Known Issues](#troubleshooting--known-issues)
+PromptShield is a local edge-security gateway for LLM data-loss prevention and code compliance. The repository currently contains four main surfaces:
 
----
+| Surface | Path | Purpose |
+| --- | --- | --- |
+| Dashboard | `app/` | Next.js dashboard shell for administrative and future audit views. |
+| Chrome extension | `promptshield-chrome-extension/` | Browser-side prompt interception, masking, unmasking, and page UI feedback. |
+| Backend gateway | `ai-firewall-backend/` | Express API for masking, unmasking, chat proxying, risk scoring, and audit persistence. |
+| VS Code extension | `promptshield-vscode-extension/` | In-editor compliance scanner, Problems diagnostics, quick fixes, and local AI remediation. |
+| SDK module | `sdk_module/omnishield-core-sdk/` | Standalone scanner/redaction module retained from earlier project naming. |
 
-## Project Overview
+Important naming note: the active feature and product name is `PromptShield`. Do not introduce new `OmniShield` or `CleanScribe` names unless preserving legacy SDK paths that already exist.
 
-**PromptShield** is an enterprise-grade DLP (Data Loss Prevention) and compliance gateway for LLM interactions. It operates as a three-tier system:
+## Recent Agent Work
 
-1. **Browser-side**: Chrome MV3 extension intercepts contenteditable text
-2. **Server-side**: Express gateway masks/unmasks secrets and scans for compliance violations
-3. **Core logic**: Omnishield SDK handles pattern matching, AST parsing, and license detection
+The most recent work focused on creating and hardening the VS Code extension under `promptshield-vscode-extension/`, cleaning repository metadata, and refreshing documentation.
 
-**Tech Stack**:
-- **Frontend**: Next.js 16, React 19, Tailwind CSS
-- **Browser Extension**: Manifest V3, vanilla JavaScript
-- **Backend**: Express.js, Node.js 18+
-- **Database**: MongoDB (Mongoose ODM)
-- **SDK**: Zero-dependency Node.js module
-- **Code Analysis**: Acorn (ES6 parser), custom AST walkers
+Completed changes:
 
----
+- Created the VS Code extension scaffold using TypeScript and Webpack.
+- Added `promptshield-vscode-extension/src/cleanScribeCore.ts` as a pure scanner module with no `vscode` import.
+- Implemented Acorn AST parsing, structural token extraction, bigram generation, FNV-1a 32-bit hashing, mock Set-backed Bloom filter, and Jaccard similarity scanning.
+- Hardened AST traversal to use an iterative stack plus `WeakSet` cycle guard instead of recursion.
+- Changed structural fingerprints to use AST node types rather than identifier names so renamed code can still be detected.
+- Changed the scanner from whole-document Jaccard comparison to fixed-size rolling restricted-hash windows to avoid dilution in larger files.
+- Added `promptshield-vscode-extension/src/extension.ts` orchestration for save-time scanning, status bar state, and `PromptShield` diagnostics.
+- Added `promptshield-vscode-extension/src/promptShieldDiagnostics.ts` for diagnostic source/code constants.
+- Added `promptshield-vscode-extension/src/promptShieldCodeActions.ts` for Quick Fix actions.
+- Added quick fixes:
+  - `Copy Corporate Remediation Prompt`
+  - `Auto-Fix with Local AI`
+- Implemented local Ollama remediation using Node native `http`, no external fetch client.
+- Ollama model order is `qwen2.5-coder:1.5b`, then fallback `gemma:3`.
+- Capped Ollama response buffering at 2 MB.
+- Verified `WorkspaceEdit` application and surfaced graceful VS Code error messages on failure.
+- Added Jest tests for `cleanScribeCore.ts`.
+- Renamed all new feature-facing identifiers from OmniShield to PromptShield.
+- Rebuilt `README.md` with current architecture and flow diagrams.
+- Fixed root package metadata typo from `promptsheild` to `promptshield`.
+- Updated `.gitignore` for generated VS Code extension artifacts.
 
-## Folder Structure & File Manifest
+## Architecture Diagram
 
-```
-promptsheild/
-│
-├── 📄 README.md                           # Main user guide & quick start
-├── 📄 CONTEXT.md                          # [THIS FILE] Technical reference
-├── 📄 AGENTS.md                           # AI agent rules & conventions
-├── 📄 CLAUDE.md                           # Claude-specific instructions
-├── 📄 package.json                        # Root workspace (Next.js project)
-├── 📄 tsconfig.json                       # TypeScript compiler config
-├── 📄 next.config.ts                      # Next.js configuration
-├── 📄 eslint.config.mjs                   # ESLint rules
-│
-├── 📂 app/                                # Next.js pages & layouts
-│   ├── 📄 layout.tsx                      # Root HTML layout
-│   ├── 📄 page.tsx                        # Home page component
-│   └── 📄 globals.css                     # Global styles
-│
-├── 📂 components/
-│   └── 📂 ui/
-│       └── 📄 button.tsx                  # Reusable button component
-│
-├── 📂 lib/
-│   └── 📄 utils.ts                        # Utility functions (clsx, merge helpers)
-│
-├── 📂 public/                             # Static assets
-│
-├── 📂 promptshield-chrome-extension/      # Chrome MV3 Extension
-│   ├── 📄 manifest.json                   # Extension metadata & permissions
-│   ├── 📄 background.js                   # Service worker (persistent background)
-│   ├── 📄 content.js                      # Content script (DOM injection)
-│   ├── 📄 popup.html                      # Dashboard popup UI
-│   ├── 📄 popup.css                       # Popup styling (glassmorphic design)
-│   └── 📄 popup.js                        # Popup event handlers & stats
-│
-├── 📂 ai-firewall-backend/                # Express Gateway (Port 5000)
-│   ├── 📄 server.js                       # Express app initialization
-│   ├── 📄 package.json                    # Backend dependencies
-│   │
-│   ├── 📂 config/
-│   │   └── 📄 db.js                       # MongoDB connection setup
-│   │
-│   ├── 📂 models/
-│   │   └── 📄 AuditLog.js                 # Mongoose schema for audit records
-│   │
-│   ├── 📂 controllers/
-│   │   └── 📄 proxyController.js          # Route handlers (/api/proxy/*)
-│   │
-│   ├── 📂 routes/
-│   │   └── 📄 proxyRoutes.js              # Express router definitions
-│   │
-│   ├── 📂 middleware/
-│   │   └── 📄 logger.js                   # Request/response logging middleware
-│   │
-│   ├── 📂 services/
-│   │   ├── 📄 maskingService.js           # Token generation & masking logic
-│   │   ├── 📄 openaiService.js            # LLM API integration (Groq, OpenAI)
-│   │   ├── 📄 promptInjectionService.js   # Injection detection patterns
-│   │   ├── 📄 riskService.js              # Risk scoring & severity calculation
-│   │   │
-│   │   └── 📂 codeAnalysis/
-│   │       ├── 📄 astParser.js            # Acorn-based AST parsing (JS/TS)
-│   │       ├── 📄 licenseMatcher.js       # SPDX license template matching
-│   │       └── 📄 textExtractor.js        # Markdown code block extraction
-│   │
-│   └── 📂 test/
-│       └── 📄 code-analysis.test.js       # Jest test suite (10/10 passing)
-│
-└── 📂 sdk_module/
-    └── 📂 omnishield-core-sdk/            # Standalone SDK (zero dependencies)
-        ├── 📄 index.js                    # Public API entry point
-        ├── 📄 ai-scanner.js               # Local LLM scanner (context-sensitive detection)
-        ├── 📄 test-sdk.js                 # Integration test suite
-        └── 📄 test-edge-cases.js          # Stress & boundary tests
+```mermaid
+flowchart TD
+    BrowserUser["Developer in hosted LLM page"] --> ChromeExt["PromptShield Chrome Extension"]
+    ChromeExt --> ClientDetectors["Client-side detectors: regex, NER, AST"]
+    ClientDetectors --> Gateway["Express Gateway"]
+    Gateway --> Masking["Masking Service"]
+    Gateway --> Risk["Risk and Prompt Injection Services"]
+    Gateway --> CodeAnalysis["Backend Code Analysis"]
+    Gateway --> AuditDb[("MongoDB Audit Logs")]
+    Gateway --> HostedLLM["Hosted LLM Provider"]
+
+    IDEUser["Developer in VS Code"] --> VSCodeExt["PromptShield VS Code Extension"]
+    VSCodeExt --> CoreEngine["cleanScribeCore.ts"]
+    CoreEngine --> Problems["VS Code Diagnostics Collection"]
+    Problems --> CodeActions["PromptShield Quick Fixes"]
+    CodeActions --> Clipboard["Corporate Remediation Prompt"]
+    CodeActions --> Ollama["Local Ollama"]
+    Ollama --> WorkspaceEdit["WorkspaceEdit Replacement"]
+
+    Dashboard["Next.js Dashboard"] --> Gateway
 ```
 
----
+## Browser Prompt Protection Flow
 
-## Database Schemas
+```mermaid
+sequenceDiagram
+    actor Developer
+    participant Page as LLM Web Page
+    participant Extension as Chrome Extension
+    participant Gateway as Express Gateway
+    participant Store as MongoDB
+    participant LLM as Hosted LLM
 
-### MongoDB Collections & Mongoose Models
-
-#### 1. AuditLog Schema
-**File**: `ai-firewall-backend/models/AuditLog.js`
-
-```javascript
-const AuditLogSchema = new mongoose.Schema({
-    // Request context
-    sessionId: {
-        type: String,
-        required: true,
-        index: true,
-        description: "Unique browser tab session identifier"
-    },
-    timestamp: {
-        type: Date,
-        default: Date.now,
-        index: true
-    },
-    
-    // Content fields
-    prompt: {
-        type: String,
-        required: true,
-        description: "Original unmasked user prompt"
-    },
-    sanitizedPrompt: {
-        type: String,
-        required: true,
-        description: "Masked version with [omni-*] placeholders"
-    },
-    aiResponse: {
-        type: String,
-        required: false,
-        description: "LLM response (stored only if compliance violations found)"
-    },
-    
-    // PII masking details
-    maskedFields: {
-        type: Map,
-        of: String,
-        default: new Map(),
-        description: "Map of placeholder tokens to original values (sensitive)"
-    },
-    
-    // Compliance violation flags
-    copyleftDetected: {
-        type: Boolean,
-        default: false,
-        index: true,
-        description: "True if GPL/AGPL code detected in response"
-    },
-    matchedLicense: {
-        type: String,
-        enum: ['GPL-2.0', 'GPL-3.0', 'AGPL-3.0', null],
-        default: null
-    },
-    licenseSimilarity: {
-        type: Number,
-        min: 0,
-        max: 100,
-        default: 0,
-        description: "Jaccard similarity score (0-100, threshold: 75%)"
-    },
-    offendingCode: {
-        type: String,
-        default: null,
-        description: "Code snippet matching copyleft template"
-    },
-    
-    // Injection & risk detection
-    injectionDetected: {
-        type: Boolean,
-        default: false
-    },
-    injectionPatterns: {
-        type: [String],
-        default: []
-    },
-    riskScore: {
-        type: Number,
-        min: 0,
-        max: 100,
-        default: 0,
-        description: "Overall security risk (0-100)"
-    },
-    
-    // User & system info
-    userId: {
-        type: String,
-        default: "anonymous"
-    },
-    ipAddress: {
-        type: String,
-        default: null
-    },
-    userAgent: {
-        type: String,
-        default: null
-    }
-});
-
-AuditLogSchema.index({ sessionId: 1, timestamp: -1 });
-AuditLogSchema.index({ copyleftDetected: 1 });
+    Developer->>Page: Enters prompt
+    Page->>Extension: Content script observes editable field
+    Extension->>Extension: Detects secrets, PII, URLs, and risky patterns
+    Extension->>Gateway: POST /api/proxy/mask
+    Gateway->>Gateway: Tokenizes sensitive values
+    Gateway->>Store: Persists audit and placeholder mapping
+    Gateway-->>Extension: Returns masked prompt
+    Extension->>Page: Replaces prompt with masked prompt
+    Page->>LLM: Sends masked prompt
+    LLM-->>Page: Streams response
+    Extension->>Gateway: POST /api/proxy/unmask when needed
+    Gateway-->>Extension: Returns local display values
 ```
 
----
+## VS Code Compliance Flow
 
-## API Endpoints & Request/Response Specs
+```mermaid
+sequenceDiagram
+    actor Developer
+    participant VSCode as VS Code
+    participant Extension as extension.ts
+    participant Core as cleanScribeCore.ts
+    participant Problems as DiagnosticCollection
+    participant Actions as CodeActionProvider
+    participant Ollama as Local Ollama
 
-All endpoints are hosted on `http://localhost:5000` and use JSON content-type.
-
-### 1. Mask Prompt (PII & Secret Redaction)
-
-**Endpoint**: `POST /api/proxy/mask`
-
-**Purpose**: Detect and mask sensitive data in user prompts before sending to LLM
-
-**Request Headers**:
-```
-Content-Type: application/json
-```
-
-**Request Body**:
-```json
-{
-    "prompt": "Draft an email to john.doe@company.com with API key sk-proj-abc123xyz. Budget is $2.5M.",
-    "sessionId": "chrome-tab-session-12345",
-    "includeInjectionDetection": true
-}
-```
-
-**Response Body (Success 200)**:
-```json
-{
-    "success": true,
-    "maskedPrompt": "Draft an email to [omni-email-K9x2vL] with API key [omni-openai-D4mR8xKq]. Budget is [omni-financial-P7n3bQ].",
-    "sessionId": "chrome-tab-session-12345",
-    "detectedFields": {
-        "emails": ["john.doe@company.com"],
-        "apiKeys": ["sk-proj-abc123xyz"],
-        "financialData": ["$2.5M"]
-    },
-    "injectionPatterns": [],
-    "injectionDetected": false,
-    "riskScore": 15,
-    "timestamp": "2026-05-27T14:32:10.234Z"
-}
+    Developer->>VSCode: Saves JavaScript or TypeScript document
+    VSCode->>Extension: onDidSaveTextDocument
+    Extension->>Problems: Clear previous diagnostics for URI
+    Extension->>Extension: StatusBarItem = Scanning...
+    Extension->>Core: scanDocument(document.getText())
+    Core->>Core: Acorn parse
+    Core->>Core: Structural token and bigram extraction
+    Core->>Core: FNV-1a hash generation
+    Core->>Core: Rolling Jaccard comparison
+    Core-->>Extension: Scan violations
+    alt No violations
+        Extension->>Extension: StatusBarItem = Safe
+    else Violations found
+        Extension->>Problems: Set PromptShield diagnostics
+        Extension->>Extension: StatusBarItem = Issues Detected
+        Developer->>Actions: Opens Quick Fix
+        Actions-->>Developer: Copy Corporate Remediation Prompt
+        Actions->>Ollama: POST /api/generate
+        Ollama-->>Actions: Structurally distinct rewrite
+        Actions->>VSCode: WorkspaceEdit replaces flagged range
+    end
 ```
 
-**Response Body (Error 400)**:
-```json
-{
-    "success": false,
-    "error": "Invalid session ID or missing prompt field",
-    "statusCode": 400
-}
-```
+## VS Code Extension Details
 
----
+Path: `promptshield-vscode-extension/`
 
-### 2. Unmask Text (Placeholder Hydration)
+Important files:
 
-**Endpoint**: `POST /api/proxy/unmask`
+| File | Purpose |
+| --- | --- |
+| `src/extension.ts` | VS Code activation, save listener, status bar, diagnostics, and Quick Fix registration. |
+| `src/cleanScribeCore.ts` | Pure scanner module. Does not import `vscode`. |
+| `src/promptShieldDiagnostics.ts` | Diagnostic source and code constants. |
+| `src/promptShieldCodeActions.ts` | CodeActionProvider and local AI remediation command. |
+| `test/cleanScribeCore.test.ts` | Jest tests for core scanner behavior. |
+| `webpack.config.js` | Bundles the extension entry into `dist/extension.js`. |
 
-**Purpose**: Restore original values from masked placeholders (called from extension's background worker)
-
-**Request Body**:
-```json
-{
-    "text": "The email should go to [omni-email-K9x2vL] for approval.",
-    "sessionId": "chrome-tab-session-12345",
-    "unmaskedFields": ["emails"]
-}
-```
-
-**Response Body (Success 200)**:
-```json
-{
-    "success": true,
-    "unmaskedText": "The email should go to john.doe@company.com for approval.",
-    "restored": {
-        "[omni-email-K9x2vL]": "john.doe@company.com"
-    },
-    "timestamp": "2026-05-27T14:34:52.103Z"
-}
-```
-
----
-
-### 3. Proxy Chat (LLM Proxy with License Scanning)
-
-**Endpoint**: `POST /api/proxy/chat`
-
-**Purpose**: Proxy chat requests to LLM provider (Groq, OpenAI, etc.) with response scanning
-
-**Request Body**:
-```json
-{
-    "maskedPrompt": "Write Python code to sort a list using [omni-algorithm-name].",
-    "sessionId": "chrome-tab-session-12345",
-    "model": "gpt-4",
-    "provider": "openai",
-    "scanForLicenses": true
-}
-```
-
-**Response Body (Success 200 - No Violations)**:
-```json
-{
-    "success": true,
-    "aiResponse": "Here's a Python function to sort a list...",
-    "copyleftDetected": false,
-    "complianceWarnings": [],
-    "auditLogId": "64a7c2e9f1b8c3d5e6f7g8h9",
-    "timestamp": "2026-05-27T14:36:15.567Z"
-}
-```
-
-**Response Body (Success 200 - With Violations)**:
-```json
-{
-    "success": true,
-    "aiResponse": "⚠️ [COMPLIANCE WARNING: GPL-3.0 DETECTED - 78% match]\n\nHere's the code...",
-    "copyleftDetected": true,
-    "matchedLicense": "GPL-3.0",
-    "licenseSimilarity": 78,
-    "complianceWarnings": [
-        {
-            "level": "HIGH",
-            "message": "Generated code matches GPL-3.0 license (78% similarity)",
-            "offendingLines": "1-12"
-        }
-    ],
-    "auditLogId": "64a7c2e9f1b8c3d5e6f7g8h9",
-    "timestamp": "2026-05-27T14:36:15.567Z"
-}
-```
-
----
-
-### 4. Retrieve Audit Logs
-
-**Endpoint**: `GET /api/audit/logs`
-
-**Query Parameters**:
-```
-?sessionId=chrome-tab-session-12345
-?startDate=2026-05-27T00:00:00Z
-?endDate=2026-05-27T23:59:59Z
-?copyleftOnly=false
-?limit=50
-&skip=0
-```
-
-**Response Body (Success 200)**:
-```json
-{
-    "success": true,
-    "total": 127,
-    "logs": [
-        {
-            "_id": "64a7c2e9f1b8c3d5e6f7g8h9",
-            "sessionId": "chrome-tab-session-12345",
-            "timestamp": "2026-05-27T14:32:10.234Z",
-            "prompt": "Draft an email...",
-            "sanitizedPrompt": "Draft an email...",
-            "copyleftDetected": false,
-            "riskScore": 15,
-            "injectionDetected": false
-        }
-        // ... more logs
-    ]
-}
-```
-
----
-
-## Configuration & Environment Variables
-
-### `.env` File (Backend)
-
-**Location**: `ai-firewall-backend/.env`
-
-```env
-# Server Config
-PORT=5000
-NODE_ENV=development
-DEBUG=true
-
-# Database
-MONGO_URI=mongodb://localhost:27017/promptshield
-MONGO_TIMEOUT=5000
-
-# LLM Provider Keys (choose at least one)
-GROQ_API_KEY=gsk_your_groq_key_here
-OPENAI_API_KEY=sk-proj-your_openai_key
-GOOGLE_API_KEY=AIzaSyB_your_google_key
-
-# Ollama Local LLM (for context-sensitive scanning)
-OLLAMA_ENDPOINT=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:1.5b
-OLLAMA_ENABLED=true
-
-# Security Settings
-SESSION_TIMEOUT_MS=3600000
-MAX_REQUESTS_PER_MINUTE=100
-CORS_ORIGIN=chrome-extension://your_extension_id_here
-
-# Compliance Thresholds
-LICENSE_SIMILARITY_THRESHOLD=75
-RISK_SCORE_ALERT_THRESHOLD=50
-
-# Logging
-LOG_LEVEL=info
-LOG_TO_FILE=true
-LOG_DIR=./logs
-```
-
-### Chrome Extension Config
-
-**Location**: `promptshield-chrome-extension/manifest.json`
+Activation events:
 
 ```json
-{
-    "manifest_version": 3,
-    "name": "PromptShield AI",
-    "version": "1.0.0",
-    "description": "Enterprise AI DLP Firewall",
-    "permissions": [
-        "storage",
-        "activeTab",
-        "scripting"
-    ],
-    "host_permissions": [
-        "http://localhost:5000/*",
-        "https://chatgpt.com/*",
-        "https://claude.ai/*",
-        "https://gemini.google.com/*",
-        "https://*.deepseek.com/*"
-    ],
-    "background": {
-        "service_worker": "background.js"
-    },
-    "content_scripts": [
-        {
-            "matches": [
-                "https://chatgpt.com/*",
-                "https://claude.ai/*",
-                "https://gemini.google.com/*",
-                "https://*.deepseek.com/*"
-            ],
-            "js": ["content.js"],
-            "run_at": "document_start"
-        }
-    ],
-    "action": {
-        "default_popup": "popup.html",
-        "default_title": "PromptShield AI - Security Dashboard"
-    }
-}
+[
+  "onLanguage:javascript",
+  "onLanguage:typescript"
+]
 ```
 
----
+Diagnostic behavior:
 
-## Security Pattern Matching
+- Diagnostic collection name/source: `PromptShield`.
+- Diagnostic code: `restricted-gpl-similarity`.
+- Previous diagnostics are cleared with `diagnosticCollection.delete(document.uri)` before each scan.
+- `critical` or `CRITICAL` severity maps to `vscode.DiagnosticSeverity.Error`.
+- Status bar text states:
+  - `Scanning...`
+  - `Safe`
+  - `Issues Detected`
 
-### Built-in Regex Patterns
+Quick Fix behavior:
 
-**Location**: `sdk_module/omnishield-core-sdk/ai-scanner.js` (base patterns)
+- The provider only responds to diagnostics where:
+  - `diagnostic.source === "PromptShield"`
+  - `diagnostic.code === "restricted-gpl-similarity"`
+- `Copy Corporate Remediation Prompt` writes a hardcoded remediation instruction block to the VS Code clipboard.
+- `Auto-Fix with Local AI` opens the flagged document, extracts the diagnostic range, calls Ollama, trims the response, and applies a `WorkspaceEdit`.
+- HTTP uses Node native `http`.
+- External libraries like `axios` or `node-fetch` are intentionally not used in the VS Code extension.
 
-```javascript
-// API Keys
-const API_KEY_PATTERNS = {
-    openai: /sk-proj-[A-Za-z0-9_\-]{20,}/g,
-    huggingface: /hf_[A-Za-z0-9]{20,}/g,
-    aws: /AKIA[0-9A-Z]{16}/g,
-    gcp: /AIzaSy[A-Za-z0-9_\-]{33}/g,
-    groq: /gsk_[A-Za-z0-9_]{30,}/g
-};
+Ollama remediation details:
 
-// PII Patterns
-const PII_PATTERNS = {
-    ssn: /\b\d{3}-\d{2}-\d{4}\b/g,                                    // xxx-xx-xxxx
-    email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-    phone: /\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/g,
-    creditCard: /\b(?:\d{4}[-\s]?){3}\d{4}\b/g,
-    ipv4: /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g
-};
+- Endpoint: `http://127.0.0.1:11434/api/generate`
+- Primary model: `qwen2.5-coder:1.5b`
+- Fallback model: `gemma:3`
+- Request timeout: `120000` ms
+- Max response bytes: `2 * 1024 * 1024`
+- Error message instructs the user to start local Ollama and ensure one of the supported models is available.
 
-// Proprietary/URL Patterns
-const PROPRIETARY_PATTERNS = {
-    internalUrl: /https?:\/\/(?:internal|corp|intranet|vpn|private)\..+/gi,
-    jiraTicket: /[A-Z]+-\d{4,5}/g,
-    confidentialMarking: /\b(?:confidential|secret|top\s+secret|restricted)\b/gi
-};
-```
+## Core Scanner Details
 
-### Context-Sensitive Detection (Local LLM)
+File: `promptshield-vscode-extension/src/cleanScribeCore.ts`
 
-**File**: `sdk_module/omnishield-core-sdk/ai-scanner.js`
+Public exports:
 
-The SDK uses a local Ollama instance (default: `qwen2.5:1.5b`) for detecting:
-- Project codenames (e.g., "Project Nightingale")
-- Employee names in business context
-- Proprietary product names (e.g., "Prometheus SDK")
-- Financial amounts with business context (e.g., "$4.2M acquisition budget")
-- Contract counterparties
+- `AstStructuralToken`
+- `AstBigram`
+- `ViolationSeverity`
+- `ScanViolation`
+- `MockBloomFilter`
+- `parseAstTokens(code: string)`
+- `extractBigrams(tokens)`
+- `fnv1a32(value: string)`
+- `scanDocument(code: string)`
+- `calculateJaccardSimilarity(left, right)`
 
-**Latency**: 200-800ms (acceptable for gateway layer vs 1-5s LLM round-trip)
+Scanner pipeline:
 
-**Ollama Setup**:
+1. Normalize common TypeScript-only syntax into Acorn-compatible JavaScript-like source.
+2. Parse with Acorn using `ecmaVersion: "latest"`, `sourceType: "module"`, and location tracking.
+3. Traverse AST iteratively using a stack.
+4. Emit structural tokens with node type, optional name, and line.
+5. Convert adjacent structural tokens into bigrams.
+6. Hash bigram strings with FNV-1a 32-bit.
+7. Compare rolling windows of document hashes against a hardcoded restricted hash Set.
+8. Emit one violation if best Jaccard similarity is at least `0.75`.
+
+Important design choices:
+
+- Bigrams use node type only for matching, not identifier names.
+- The traversal is iterative to avoid call-stack issues on deeply nested input.
+- A `WeakSet` prevents revisiting nodes if unusual AST objects contain cycles.
+- The scanner is stateless and safe to call repeatedly.
+- The mock Bloom filter is intentionally a `Set<number>` for prototype determinism.
+
+Known limitations:
+
+- Acorn does not natively parse full TypeScript. The current TypeScript support is a light normalization pass and will not handle every advanced TS construct.
+- Restricted GPL hashes are prototype hardcoded fingerprints, not a real production signature database.
+- `scanDocument` currently emits a single violation for the best restricted match.
+
+## Test Suite
+
+VS Code extension tests:
+
 ```bash
-# Install Ollama (https://ollama.ai)
-ollama pull qwen2.5:1.5b
-
-# Run in background
-ollama serve
+cd promptshield-vscode-extension
+npm install
+npm test
+npm run typecheck
+npm run compile
+npm audit --omit=optional
 ```
 
----
+Current core tests in `test/cleanScribeCore.test.ts`:
 
-## License Detection Algorithm
+- Clean code returns zero violations.
+- Structurally plagiarized restricted logic returns one violation.
+- FNV-1a hashing is stable and returns the expected integer for the same string.
 
-### Copyleft License Templates
+Last verified results:
 
-**File**: `ai-firewall-backend/services/codeAnalysis/licenseMatcher.js`
+- Jest: 3 tests passed.
+- TypeScript: zero errors.
+- Webpack: compiled successfully.
+- npm audit for VS Code extension: zero vulnerabilities.
 
-Supported licenses:
-- **GPL-2.0**: GNU General Public License v2
-- **GPL-3.0**: GNU General Public License v3
-- **AGPL-3.0**: GNU Affero General Public License v3
-
-**Detection Method**: Jaccard similarity on normalized AST bigrams
-
-```javascript
-// Simplified algorithm:
-function detectLicense(generatedCode) {
-    // 1. Extract from Markdown backticks
-    const codeBlocks = extractCodeBlocks(generatedCode);
-    
-    // 2. Parse AST
-    const tokens = parseAST(codeBlocks);
-    
-    // 3. Generate bigrams (token pairs)
-    const bigrams = generateBigrams(tokens);
-    
-    // 4. Compare against GPL/AGPL templates
-    const gpl2Match = calculateJaccard(bigrams, GPL2_TEMPLATE_BIGRAMS);
-    const gpl3Match = calculateJaccard(bigrams, GPL3_TEMPLATE_BIGRAMS);
-    const agpl3Match = calculateJaccard(bigrams, AGPL3_TEMPLATE_BIGRAMS);
-    
-    // 5. Return best match if > 75% threshold
-    return Math.max(gpl2Match, gpl3Match, agpl3Match) > 75 ? matched_license : null;
-}
-
-function calculateJaccard(set1, set2) {
-    const intersection = set1.filter(item => set2.includes(item)).length;
-    const union = new Set([...set1, ...set2]).size;
-    return (intersection / union) * 100;
-}
-```
-
----
-
-## Chrome Extension Architecture
-
-### File: `promptshield-chrome-extension/background.js`
-
-**Purpose**: Persistent service worker handling:
-- API requests to backend
-- Message routing
-- Chrome storage management
-
-**Key Functions**:
-```javascript
-// Health check
-chrome.runtime.onMessage.addListener(({ action }, sender, sendResponse) => {
-    if (action === 'checkHealth') {
-        fetch('http://localhost:5000/api/health')
-            .then(res => res.json())
-            .then(data => sendResponse({ status: 'online', ...data }))
-            .catch(() => sendResponse({ status: 'offline' }));
-    }
-});
-
-// Masking request
-if (action === 'maskPrompt') {
-    fetch('http://localhost:5000/api/proxy/mask', {
-        method: 'POST',
-        body: JSON.stringify({ prompt: data.text, sessionId }),
-        headers: { 'Content-Type': 'application/json' }
-    }).then(res => res.json()).then(sendResponse);
-}
-```
-
-### File: `promptshield-chrome-extension/content.js`
-
-**Purpose**: DOM injection and text interception
-
-**Key Operations**:
-1. **ContentEditable Detection**: Finds Quill, ProseMirror, or native contenteditable elements
-2. **Text Replacement**: Intercepts on `beforepaste`, `input`, `keyup` events
-3. **Unmasking**: MutationObserver watches for response text nodes
-
-```javascript
-// Simplified flow:
-document.addEventListener('keyup', (e) => {
-    if (e.target.contentEditable === 'true') {
-        const text = e.target.innerText;
-        
-        // Request masking
-        chrome.runtime.sendMessage({ action: 'maskPrompt', text }, (response) => {
-            if (response.maskedPrompt) {
-                // Update DOM with masked version
-                e.target.innerText = response.maskedPrompt;
-            }
-        });
-    }
-});
-```
-
-### File: `promptshield-chrome-extension/popup.js`
-
-**Purpose**: Dashboard HUD controller
-
-**Features**:
-- Gateway health status (SHIELD SECURED / CONNECTING / OFFLINE)
-- Statistics display (emails shielded, keys blocked, PII protected)
-- Shield toggle on/off
-- Reset stats button
-
----
-
-## Backend Services Overview
-
-### `maskingService.js`
-Handles token generation and secret mapping:
-```javascript
-function generateToken(dataType, originalValue) {
-    const hash = crypto.createHash('sha256').update(originalValue).digest('hex').slice(0, 12);
-    const token = `[omni-${dataType}-${hash}]`;
-    
-    // Store in MongoDB (encrypted)
-    secretMap.set(token, encryptValue(originalValue));
-    
-    return token;
-}
-```
-
-### `promptInjectionService.js`
-Detects jailbreak and bypass attempts:
-```javascript
-const injectionPatterns = [
-    'ignore previous instructions',
-    'bypass security',
-    'reveal system prompt',
-    'jailbreak',
-    'developer mode',
-    'you are no longer bound'
-    // ... 20+ more patterns
-];
-```
-
-### `riskService.js`
-Calculates overall security risk:
-```javascript
-function calculateRiskScore(detections) {
-    let score = 0;
-    if (detections.injectionDetected) score += 30;
-    if (detections.apiKeysFound) score += 25;
-    if (detections.piiFound) score += 20;
-    if (detections.sqlInjectionFound) score += 15;
-    if (detections.urlBlacklistMatch) score += 10;
-    return Math.min(score, 100);
-}
-```
-
-### `codeAnalysis/astParser.js`
-Parses JavaScript/TypeScript with Acorn:
-```javascript
-const acorn = require('acorn');
-
-function parseAndNormalize(code) {
-    const ast = acorn.parse(code, { ecmaVersion: 2020 });
-    
-    // Walk AST and extract normalized tokens
-    // Remove variable names, literals to get structural signature
-    return normalizeAST(ast);
-}
-```
-
----
-
-## SDK Module Reference
-
-### `omnishield-core-sdk/index.js`
-
-**Public API**:
-```javascript
-module.exports = {
-    // Scanner functions
-    scanForPII(text),
-    scanForAPIKeys(text),
-    scanForInjection(text),
-    scanForLicenses(code),
-    
-    // Configuration
-    setOllamaEndpoint(url),
-    setLicenseThreshold(percent),
-    
-    // Batch operations
-    scanBatch(texts),
-    
-    // Utilities
-    generatePlaceholder(type, value),
-    isAvailable()
-};
-```
-
-### Example Usage
-
-```javascript
-const Omnishield = require('./omnishield-core-sdk');
-
-const text = "My API key is sk-proj-abc123 and email is john@company.com";
-const results = Omnishield.scanForPII(text);
-// Returns: { apiKeys: ['sk-proj-abc123'], emails: ['john@company.com'] }
-```
-
----
-
-## Testing & Validation
-
-### Backend Tests
-
-**File**: `ai-firewall-backend/test/code-analysis.test.js`
+Backend tests:
 
 ```bash
 cd ai-firewall-backend
-npm test
-
-# Output: 10/10 tests passing ✅
+node test/code-analysis.test.js
 ```
 
-**Test Coverage**:
-- AST parsing (JavaScript, TypeScript)
-- License detection accuracy
-- Jaccard similarity calculation
-- Edge cases (minified code, mixed languages)
-
-### SDK Tests
-
-**File**: `sdk_module/omnishield-core-sdk/test-sdk.js`
+SDK tests:
 
 ```bash
 cd sdk_module/omnishield-core-sdk
 node test-sdk.js
-
-# Validates:
-# ✓ PII Detection (SSN, Email, Phone, Credit Card)
-# ✓ API Key Detection (OpenAI, GCP, AWS, HuggingFace)
-# ✓ Prompt Injection Patterns
-# ✓ License Template Matching
-```
-
-**File**: `sdk_module/omnishield-core-sdk/test-edge-cases.js`
-
-```bash
 node test-edge-cases.js
-
-# Tests:
-# ✓ Extremely long prompts (100K+ chars)
-# ✓ Unicode & emoji handling
-# ✓ Obfuscated patterns
-# ✓ Mixed language code
-# ✓ Malformed input
 ```
 
----
+## Repository Hygiene
 
-## Troubleshooting & Known Issues
+Generated outputs are ignored and should not be committed:
 
-### Extension Not Detecting Prompts
+- `node_modules/`
+- `.next/`
+- `dist/`
+- `coverage/`
+- `.vscode-test/`
+- `*.vsix`
+- `.env*`
+- editor metadata
 
-**Symptom**: Text in ChatGPT not being masked
+Recent cleanup removed:
 
-**Diagnosis**:
-```javascript
-// Console check:
-chrome.runtime.sendMessage({ action: 'checkHealth' }, (res) => {
-    console.log('Backend status:', res);
-});
+- `.next/`
+- `promptshield-vscode-extension/node_modules/`
+- `promptshield-vscode-extension/dist/`
+
+Note: some root `node_modules` native binary folders may remain if Windows locks files while Node, Next.js, or VS Code extension host processes are running. They are ignored. Close Node processes before removing them.
+
+## Backend Gateway
+
+Path: `ai-firewall-backend/`
+
+Primary files:
+
+- `server.js`: Express app initialization.
+- `config/db.js`: MongoDB connection.
+- `routes/proxyRoutes.js`: Proxy route registration.
+- `controllers/proxyController.js`: Mask, unmask, chat, and audit handlers.
+- `models/AuditLog.js`: Mongoose audit log schema.
+- `services/maskingService.js`: Placeholder token generation and masking.
+- `services/openaiService.js`: Hosted LLM integration.
+- `services/promptInjectionService.js`: Prompt-injection pattern detection.
+- `services/riskService.js`: Risk scoring.
+- `services/codeAnalysis/`: Backend AST and license analysis.
+
+Default local endpoint:
+
+```text
+http://localhost:5000
 ```
 
-**Solutions**:
-1. Ensure backend running: `npm run dev` in `ai-firewall-backend/`
-2. Check CORS origin in `.env` matches extension ID
-3. Verify MongoDB is running: `mongo mongodb://localhost:27017/promptshield`
-4. Clear extension cache: `chrome://extensions` → PromptShield → Details → Clear data
+Known routes:
 
-### Backend Server Won't Start
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/proxy/mask` | POST | Mask sensitive prompt content. |
+| `/api/proxy/unmask` | POST | Restore placeholders locally. |
+| `/api/proxy/chat` | POST | Proxy LLM chat with scanning hooks. |
+| `/api/audit/logs` | GET | Retrieve audit records. |
 
-**Symptom**: `Error: listen EADDRINUSE :::5000`
+Environment example:
 
-**Solutions**:
 ```bash
-# Kill process on port 5000
-netstat -ano | findstr :5000
-taskkill /PID <PID> /F
-
-# Or change port in .env
-PORT=5001
+PORT=5000
+MONGO_URI=mongodb://localhost:27017/promptshield
+NODE_ENV=development
 ```
 
-### License Detection Too Aggressive
+Do not commit `.env` files.
 
-**Solution**: Adjust threshold in `.env`
-```env
-LICENSE_SIMILARITY_THRESHOLD=75  # Increase to 80-85 for fewer false positives
+## Chrome Extension
+
+Path: `promptshield-chrome-extension/`
+
+Key folders:
+
+- `background/`: service worker, audit helper, Ollama helper.
+- `content/`: observer, injector, interceptor, badge, toast.
+- `parser/`: regex, NER, AST, and parser composition.
+- `utils/`: constants and masking helpers.
+- `icons/`: extension image assets.
+
+Manifest:
+
+- Manifest V3.
+- Host permissions currently include Gemini, ChatGPT, Copilot, and localhost.
+- Content scripts load parser utilities before content observers/interceptors.
+
+## Dashboard
+
+Path: `app/`
+
+Stack:
+
+- Next.js 16
+- React 19
+- Tailwind CSS 4
+- TypeScript
+
+Important instruction from `AGENTS.md`:
+
+- This project uses a Next.js version with breaking changes.
+- Before editing Next.js code, read relevant docs in `node_modules/next/dist/docs/` if dependencies are installed.
+
+## Setup Commands
+
+Root dashboard:
+
+```bash
+npm install
+npm run dev
 ```
 
-### Ollama Scanner Timeout
+Backend:
 
-**Symptom**: 800ms+ latency on mask requests
-
-**Solutions**:
-1. Disable Ollama: `OLLAMA_ENABLED=false` (fallback to regex-only)
-2. Use faster model: `OLLAMA_MODEL=tinyllama:latest`
-3. Increase timeout: `OLLAMA_TIMEOUT=2000`
-
----
-
-## Development Roadmap
-
-- [ ] Support for Claude, Cohere, Anthropic APIs
-- [ ] Fine-tuned local copyleft detection model
-- [ ] Encrypted credential storage in extension
-- [ ] Audit log export (PDF, CSV)
-- [ ] Real-time compliance dashboards
-- [ ] API rate limiting & request validation
-- [ ] Multi-language code analysis (Python, Go, Rust)
-
----
-
-## Resources & Documentation
-
-- [Chrome Extension MV3 Docs](https://developer.chrome.com/docs/extensions/mv3/)
-- [MongoDB Mongoose Docs](https://mongoosejs.com/docs/)
-- [Acorn JS Parser](https://github.com/acornjs/acorn)
-- [SPDX License List](https://spdx.org/licenses/)
-
----
-
-**Document Last Updated**: May 27, 2026  
-**Maintained By**: PromptShield Engineering Team
-    "success": true,
-    "unmaskedText": "Please reply to deal-lead@samsung-internal.com regarding AIzaSyB3nXk..."
-  }
-  ```
-
-### 3. Intercept and Analyze LLM Response (Copyleft Verification)
-- **Endpoint**: POST /api/proxy/chat
-- **Request Body**:
-  ```json
-  {
-    "message": "Write a fast bubblesort function in JavaScript."
-  }
-  ```
-- **Internal Pipeline**:
-  - Routes message to LLM (using Groq llama3-8b-8192 or similar model).
-  - Code extracts markdown code blocks.
-  - Generates Acorn AST tokens, normalizes identifiers, and sliding-window computes Jaccard-distance similarity scores against Copyleft (GPL v2/v3, AGPL) templates.
-  - If copyleft similarity score >= 75%, records audit log and prepends a red legal warning banner to the response text.
-
----
-
-## Key Core Implementation Details
-
-### 1. Injected Rich-Editor Input Synchronization
-Because modern interfaces like Google Gemini (Quill.js - .ql-editor) and ChatGPT (ProseMirror) maintain strict, asynchronous document model states, direct DOM assignments (like setting innerHTML = text) are immediately overwritten and reverted during the host frameworks' reconciliation loops.
-
-PromptShield solves this with an asynchronous DOM mutation + delayed event dispatch pattern in content.js:
-```javascript
-// 1. Build and insert well-formed <p> elements (which Quill and ProseMirror require)
-const paragraphHTML = lines.map(line => `<p>${line ? escapeHtml(line) : '<br>'}</p>`).join('');
-el.innerHTML = paragraphHTML;
-
-// 2. Safely position the caret selection at the end of the text
-el.focus();
-const range = document.createRange();
-range.selectNodeContents(el);
-range.collapse(false);
-const sel = window.getSelection();
-sel.removeAllRanges();
-sel.addRange(range);
-
-// 3. Delay event dispatches by 50ms
-setTimeout(() => {
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-}, 50);
+```bash
+cd ai-firewall-backend
+npm install
+npm run dev
 ```
-*Note: This 50ms delay is vital. It allows the editors' asynchronous MutationObserver routines to detect the clean `<p>` structures, parse them into their internal models, and lock them in before the input/change bubbles trigger the framework's synchronous data reconciliation.*
 
-### 2. Copyleft Signature Analysis Mechanics
-- **SPDX Scanning**: Proactively checks file comments for standard notices (e.g. SPDX-License-Identifier: GPL-3.0-only).
-- **Acorn Tokenizer**: Generates sequential JS/TS syntax nodes, stripping naming details to form a structural signature (e.g. [VariableDeclaration, Identifier, VariableDeclarator, Literal, BinaryExpression]).
-- **Bigram Slider**: Splits signatures into overlapping bigrams (e.g. [[VarDec, Ident], [Ident, VarDecl], [VarDecl, Lit]]).
-- **Jaccard Similarity Check**: Calculates intersection ratios against known GPL codebase profiles. Score >= 75% is audited as high compliance risk.
+VS Code extension:
 
----
+```bash
+cd promptshield-vscode-extension
+npm install
+npm test
+npm run typecheck
+npm run compile
+```
 
-## Standalone Core Testing Frameworks
+Ollama:
 
-The system includes multiple robust test harnesses:
-1. **test-sdk.js**: Validates regex boundaries, pattern triggers, secret redactions, character rules, and validation limits in the SDK library.
-2. **test-edge-cases.js**: Tests high-stress situations, unicode compliance, and invalid payloads inside the core matching expressions.
-3. **code-analysis.test.js**: Tests the backend AST-extraction matching loops, including Acorn AST mapping, multi-language tokenization, structural bigram extraction, Jaccard distance calculators, and SPDX licensing comment detections.
+```bash
+ollama pull qwen2.5-coder:1.5b
+ollama pull gemma:3
+ollama serve
+```
+
+Chrome extension:
+
+1. Open `chrome://extensions`.
+2. Enable Developer mode.
+3. Select Load unpacked.
+4. Choose `promptshield-chrome-extension/`.
+
+## Guidance For Future Agents
+
+- Prefer the `promptshield-vscode-extension/` implementation over any old deleted `vscode-extension/` references.
+- Keep the core scanner pure. Do not import `vscode` into `cleanScribeCore.ts`.
+- Keep local AI remediation offline-first and local-only through `127.0.0.1`.
+- Avoid reintroducing external HTTP clients into the VS Code extension.
+- Keep generated folders out of git.
+- If updating the Next.js app, first inspect the installed Next.js docs because the project uses a newer Next.js version.
+- Use `rg` to find stale names before renaming anything.
+- Use `npm.cmd` on Windows if PowerShell blocks `npm.ps1`.
+
