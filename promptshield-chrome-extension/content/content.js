@@ -8,7 +8,7 @@
       target &&
         target.closest &&
         target.closest(
-          'button[aria-label="Send message"], button[aria-label="Send prompt"], [data-testid="send-button"], button[aria-label="Submit message"]'
+          'button[aria-label="Send message"], button[aria-label="Send prompt"], [data-testid="send-button"], button[aria-label="Submit message"], button[data-mat-icon-name="send"], .send-button'
         )
     );
   }

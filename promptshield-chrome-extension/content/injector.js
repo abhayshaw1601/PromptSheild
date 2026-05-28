@@ -8,164 +8,164 @@
   }
 
   function moveCursorToEnd(inputEl) {
-    const range = document.createRange();
-    const selection = window.getSelection();
-    range.selectNodeContents(inputEl);
-    range.collapse(false);
-    selection.removeAllRanges();
-    selection.addRange(range);
+    try {
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(inputEl);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) { /* ignore */ }
   }
 
-  // Exact event sequence Angular needs to update its internal model
-  function triggerAngularUpdate(inputEl, text) {
-    inputEl.dispatchEvent(new Event('focus', { bubbles: true }));
-    inputEl.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'a', code: 'KeyA', keyCode: 65, which: 65,
-      bubbles: true, cancelable: true, composed: true
-    }));
-    inputEl.dispatchEvent(new InputEvent('input', {
-      inputType: 'insertText',
-      data: text,
-      bubbles: true, cancelable: true, composed: true
-    }));
-    inputEl.dispatchEvent(new KeyboardEvent('keyup', {
-      key: 'a', code: 'KeyA', keyCode: 65, which: 65,
-      bubbles: true, cancelable: true, composed: true
-    }));
-    inputEl.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
+  // ─── TEXT INJECTION ──────────────────────────────────────────────────────────
+  // Strategy: select-all then execCommand insertText in one shot.
+  // This keeps the cursor inside the element so execCommand works,
+  // and fires a real InputEvent that Angular's (input) binding picks up.
   async function injectSanitizedText(inputEl, sanitizedText) {
     PromptShield.isSanitizing = true;
 
     inputEl.focus();
-    inputEl.innerHTML = '';
-    inputEl.textContent = '';
-
-    inputEl.dispatchEvent(new InputEvent('input', {
-      inputType: 'deleteContentBackward',
-      bubbles: true, cancelable: true, composed: true
-    }));
-
-    await wait(50);
-
-    document.execCommand('insertText', false, sanitizedText);
-    triggerAngularUpdate(inputEl, sanitizedText);
     moveCursorToEnd(inputEl);
 
-    await wait(100);
+    // Select everything currently in the box
+    document.execCommand('selectAll', false, null);
+    await wait(30);
+
+    // Replace selection with sanitized text — this fires a real InputEvent
+    // that Angular's change detection actually responds to
+    document.execCommand('insertText', false, sanitizedText);
+    await wait(30);
+
+    // Belt-and-suspenders: also fire an InputEvent so Angular's (input) handler runs
+    inputEl.dispatchEvent(new InputEvent('input', {
+      inputType: 'insertText',
+      data: sanitizedText,
+      bubbles: true,
+      cancelable: true,
+      composed: true
+    }));
+
+    moveCursorToEnd(inputEl);
+    await wait(80);
+
     PromptShield.isSanitizing = false;
   }
 
+  // ─── SEND BUTTON FINDER ──────────────────────────────────────────────────────
   function findGeminiSendButton() {
-    const selectors = [
-      'button[aria-label="Send message"]',
-      'button[aria-label="Send prompt"]',
-      'button[data-mat-icon-name="send"]',
-      '.send-button',
-      'button.mdc-icon-button[aria-label*="send" i]'
+    // Try known selectors first
+    const candidates = [
+      document.querySelector('button[aria-label="Send message"]'),
+      document.querySelector('button[aria-label="Send prompt"]'),
+      document.querySelector('button[data-mat-icon-name="send"]'),
+      document.querySelector('.send-button'),
+      document.querySelector('button.mdc-icon-button[aria-label*="send" i]'),
     ];
-    for (const sel of selectors) {
-      const btn = document.querySelector(sel);
+    for (const btn of candidates) {
       if (btn) return btn;
     }
-    const matIcon = document.querySelector('mat-icon[fonticon="send"]');
-    if (matIcon) return matIcon.closest('button');
 
+    // mat-icon fallback
+    const matIcon = document.querySelector('mat-icon[fonticon="send"]');
+    if (matIcon) {
+      const btn = matIcon.closest('button');
+      if (btn) return btn;
+    }
+
+    // Broad scan — any button whose aria-label mentions "send"
     for (const btn of document.querySelectorAll('button')) {
       if ((btn.getAttribute('aria-label') || '').toLowerCase().includes('send')) return btn;
     }
+
     return null;
   }
 
+  // Angular uses aria-disabled="true" — NOT the native disabled property
   function isButtonReady(btn) {
-    return btn && btn.getAttribute('aria-disabled') !== 'true';
+    if (!btn) return false;
+    if (btn.getAttribute('aria-disabled') === 'true') return false;
+    if (btn.disabled) return false;
+    return true;
   }
 
-  // Watch the button's aria-disabled attribute and click the moment Angular enables it.
-  // Resolves as soon as the click fires, or after timeoutMs if it never becomes ready.
-  function waitForButtonAndClick(timeoutMs) {
-    return new Promise((resolve) => {
-      const btn = findGeminiSendButton();
+  // ─── AUTO SUBMIT ─────────────────────────────────────────────────────────────
+  // Approach: observe the send button's aria-disabled attribute.
+  // The moment Angular removes it (= text recognised, button enabled), click.
+  // Fallback: if button never becomes ready in 3s, simulate Enter.
+  async function autoSubmitGemini() {
+    const inputEl = document.querySelector(PromptShield.GEMINI_INPUT_SELECTOR);
+    console.log('[PS] autoSubmitGemini — inputEl:', !!inputEl);
 
-      // Already ready — click immediately
-      if (isButtonReady(btn)) {
-        console.log('[PS] submit: button already ready, clicking now');
-        btn.click();
-        resolve('immediate');
-        return;
+    // Check immediately — sometimes the button is already ready
+    let btn = findGeminiSendButton();
+    console.log('[PS] btn found:', !!btn, '| aria-disabled:', btn && btn.getAttribute('aria-disabled'));
+
+    if (isButtonReady(btn)) {
+      console.log('[PS] submit: immediate click');
+      btn.click();
+      return;
+    }
+
+    // Set up MutationObserver BEFORE firing any events,
+    // so we don't miss the attribute flip
+    const clickResult = await new Promise((resolve) => {
+      let resolved = false;
+
+      function tryClick(label) {
+        if (resolved) return;
+        const b = findGeminiSendButton();
+        if (!isButtonReady(b)) return;
+        resolved = true;
+        cleanup();
+        console.log('[PS] submit:', label);
+        b.click();
+        resolve(label);
       }
 
-      if (!btn) {
-        console.log('[PS] submit: no send button found');
-        resolve('no-button');
-        return;
+      // Watch the button's own aria-disabled
+      const btnObserver = btn ? new MutationObserver(() => tryClick('btn-observer')) : null;
+      if (btn && btnObserver) {
+        btnObserver.observe(btn, { attributes: true, attributeFilter: ['aria-disabled', 'disabled'] });
       }
 
-      console.log('[PS] submit: button aria-disabled, watching for change...');
-
-      // Observe aria-disabled on the button itself
-      const observer = new MutationObserver(() => {
-        if (isButtonReady(btn)) {
-          observer.disconnect();
-          clearTimeout(timer);
-          console.log('[PS] submit: aria-disabled removed, clicking');
-          btn.click();
-          resolve('observer-click');
-        }
+      // Also watch the whole toolbar area for DOM changes
+      // (Gemini sometimes replaces the button element entirely)
+      const bodyObserver = new MutationObserver(() => tryClick('body-observer'));
+      bodyObserver.observe(document.body, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['aria-disabled', 'disabled']
       });
 
-      observer.observe(btn, { attributes: true, attributeFilter: ['aria-disabled'] });
-
-      // Also watch the button's parent in case Gemini swaps the element entirely
-      const parentObserver = new MutationObserver(() => {
-        const freshBtn = findGeminiSendButton();
-        if (isButtonReady(freshBtn)) {
-          observer.disconnect();
-          parentObserver.disconnect();
-          clearTimeout(timer);
-          console.log('[PS] submit: fresh button ready, clicking');
-          freshBtn.click();
-          resolve('parent-observer-click');
-        }
-      });
-
-      if (btn.parentElement) {
-        parentObserver.observe(btn.parentElement, { childList: true, subtree: true, attributes: true });
+      function cleanup() {
+        if (btnObserver) btnObserver.disconnect();
+        bodyObserver.disconnect();
+        clearTimeout(timer);
       }
 
       const timer = setTimeout(() => {
-        observer.disconnect();
-        parentObserver.disconnect();
-        console.log('[PS] submit: timeout reached, trying Enter fallback');
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        console.log('[PS] submit: timeout — using Enter fallback');
         resolve('timeout');
-      }, timeoutMs);
+      }, 3000);
     });
-  }
 
-  async function autoSubmitGemini() {
-    const inputEl = document.querySelector(PromptShield.GEMINI_INPUT_SELECTOR);
-    console.log('[PS] autoSubmitGemini started, inputEl:', !!inputEl);
-
-    // Fire Angular update so it recognises the injected text and enables the button
-    if (inputEl) {
-      triggerAngularUpdate(inputEl, inputEl.innerText || inputEl.textContent || '');
-    }
-
-    // Wait for the button to become ready (up to 3s), click the instant it does
-    const result = await waitForButtonAndClick(3000);
-    console.log('[PS] waitForButtonAndClick result:', result);
-
-    if (result === 'timeout' && inputEl) {
-      // Nuclear fallback — text is already clean so the keydown interceptor won't re-trigger
-      ['keydown', 'keypress', 'keyup'].forEach((type) => {
+    if (clickResult === 'timeout' && inputEl) {
+      // isSanitizing is false and text is already clean,
+      // so the keydown interceptor will see no sensitive data and skip
+      console.log('[PS] submit: dispatching Enter sequence');
+      for (const type of ['keydown', 'keypress', 'keyup']) {
         inputEl.dispatchEvent(new KeyboardEvent(type, {
           key: 'Enter', code: 'Enter',
           keyCode: 13, which: 13,
           charCode: type === 'keypress' ? 13 : 0,
           bubbles: true, cancelable: true, composed: true
         }));
-      });
+        await wait(20);
+      }
     }
   }
 
@@ -173,7 +173,7 @@
     if (platform === 'gemini') {
       return autoSubmitGemini();
     }
-    // ChatGPT — React uses native disabled
+    // ChatGPT — React, native disabled
     await wait(200);
     const btn =
       document.querySelector('button[aria-label="Send message"]') ||
