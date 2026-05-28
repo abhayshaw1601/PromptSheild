@@ -1,37 +1,38 @@
 {
   "manifest_version": 3,
-  "name": "PromptShield AI",
+  "name": "PromptShield",
   "version": "1.0.0",
-  "description": "Enterprise AI DLP Firewall. Auto-redacts outgoing sensitive logs and unmasks incoming LLM responses in real-time.",
-  "permissions": [
-    "storage",
-    "activeTab"
-  ],
+  "description": "DLP Gateway - redacts sensitive data before it reaches cloud LLMs",
+  "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": [
-    "http://localhost:5000/*",
-    "https://chatgpt.com/*",
-    "https://claude.ai/*",
     "https://gemini.google.com/*",
-    "https://*.deepseek.com/*"
+    "https://chatgpt.com/*",
+    "https://copilot.microsoft.com/*",
+    "http://localhost/*"
   ],
-  "action": {
-    "default_popup": "popup.html"
-  },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background/background.js"
   },
   "content_scripts": [
     {
       "matches": [
-        "https://chatgpt.com/*",
-        "https://claude.ai/*",
         "https://gemini.google.com/*",
-        "https://*.deepseek.com/*"
+        "https://chatgpt.com/*",
+        "https://copilot.microsoft.com/*"
       ],
       "js": [
-        "content.js"
+        "utils/constants.js",
+        "parser/regexPatterns.js",
+        "parser/nerChecker.js",
+        "parser/astParser.js",
+        "parser/parser.js",
+        "content/observer.js",
+        "content/toast.js",
+        "content/injector.js",
+        "content/interceptor.js",
+        "content/content.js"
       ],
-      "run_at": "document_end"
+      "run_at": "document_idle"
     }
   ]
 }
