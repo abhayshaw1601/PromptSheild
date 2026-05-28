@@ -18,26 +18,27 @@
     } catch (e) { /* ignore */ }
   }
 
-  // ─── TEXT INJECTION ──────────────────────────────────────────────────────────
-  // Strategy: select-all then execCommand insertText in one shot.
-  // This keeps the cursor inside the element so execCommand works,
-  // and fires a real InputEvent that Angular's (input) binding picks up.
+  // ─── INJECTION ───────────────────────────────────────────────────────────────
+  // Gemini uses Quill editor. Quill listens to real DOM mutations + InputEvents.
+  // Strategy:
+  //   1. Focus the editor
+  //   2. Select all existing text (execCommand selectAll)
+  //   3. Replace with sanitized text (execCommand insertText)
+  //      — this fires a real InputEvent that Quill's internals pick up
+  //   4. Fire an extra InputEvent for belt-and-suspenders
   async function injectSanitizedText(inputEl, sanitizedText) {
     PromptShield.isSanitizing = true;
 
     inputEl.focus();
     moveCursorToEnd(inputEl);
 
-    // Select everything currently in the box
+    // Select all and replace in one execCommand — keeps Quill's model in sync
     document.execCommand('selectAll', false, null);
     await wait(30);
-
-    // Replace selection with sanitized text — this fires a real InputEvent
-    // that Angular's change detection actually responds to
     document.execCommand('insertText', false, sanitizedText);
     await wait(30);
 
-    // Belt-and-suspenders: also fire an InputEvent so Angular's (input) handler runs
+    // Extra InputEvent so Angular/Quill change detection definitely fires
     inputEl.dispatchEvent(new InputEvent('input', {
       inputType: 'insertText',
       data: sanitizedText,
@@ -47,59 +48,68 @@
     }));
 
     moveCursorToEnd(inputEl);
-    await wait(80);
+
+    // Wait for Quill + Angular to process and enable the send button
+    await wait(150);
 
     PromptShield.isSanitizing = false;
   }
 
-  // ─── SEND BUTTON FINDER ──────────────────────────────────────────────────────
+  // ─── SEND BUTTON ─────────────────────────────────────────────────────────────
+  // From DevTools: the send button contains a mat-icon with class "lumi-symbols"
+  // and the button itself has aria-label containing "send" (case-insensitive).
+  // When input is empty: aria-disabled="true" on the button.
+  // When input has text: aria-disabled attribute is removed entirely.
   function findGeminiSendButton() {
-    // Try known selectors first
-    const candidates = [
-      document.querySelector('button[aria-label="Send message"]'),
-      document.querySelector('button[aria-label="Send prompt"]'),
-      document.querySelector('button[data-mat-icon-name="send"]'),
-      document.querySelector('.send-button'),
-      document.querySelector('button.mdc-icon-button[aria-label*="send" i]'),
-    ];
-    for (const btn of candidates) {
-      if (btn) return btn;
-    }
-
-    // mat-icon fallback
-    const matIcon = document.querySelector('mat-icon[fonticon="send"]');
+    // Most reliable: mat-icon with send glyph → walk up to button
+    const matIcon =
+      document.querySelector('mat-icon[fonticon="send"]') ||
+      document.querySelector('mat-icon[data-mat-icon-name="send"]');
     if (matIcon) {
       const btn = matIcon.closest('button');
       if (btn) return btn;
     }
 
-    // Broad scan — any button whose aria-label mentions "send"
+    // Fallback: button with aria-label containing "send"
+    const byLabel = [
+      'button[aria-label="Send message"]',
+      'button[aria-label="Send prompt"]',
+      'button[data-mat-icon-name="send"]',
+      'button.send-button',
+      'button.mdc-icon-button[aria-label*="send" i]'
+    ];
+    for (const sel of byLabel) {
+      const btn = document.querySelector(sel);
+      if (btn) return btn;
+    }
+
+    // Broad scan
     for (const btn of document.querySelectorAll('button')) {
-      if ((btn.getAttribute('aria-label') || '').toLowerCase().includes('send')) return btn;
+      const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+      if (label.includes('send')) return btn;
     }
 
     return null;
   }
 
-  // Angular uses aria-disabled="true" — NOT the native disabled property
+  // Gemini: button is ready when aria-disabled is absent or not "true"
   function isButtonReady(btn) {
     if (!btn) return false;
-    if (btn.getAttribute('aria-disabled') === 'true') return false;
     if (btn.disabled) return false;
+    if (btn.getAttribute('aria-disabled') === 'true') return false;
     return true;
   }
 
   // ─── AUTO SUBMIT ─────────────────────────────────────────────────────────────
-  // Approach: observe the send button's aria-disabled attribute.
-  // The moment Angular removes it (= text recognised, button enabled), click.
-  // Fallback: if button never becomes ready in 3s, simulate Enter.
+  // Watch aria-disabled on the send button via MutationObserver.
+  // Click the instant it becomes ready. Fallback to Enter after 3s.
   async function autoSubmitGemini() {
     const inputEl = document.querySelector(PromptShield.GEMINI_INPUT_SELECTOR);
     console.log('[PS] autoSubmitGemini — inputEl:', !!inputEl);
 
-    // Check immediately — sometimes the button is already ready
+    // Check immediately first
     let btn = findGeminiSendButton();
-    console.log('[PS] btn found:', !!btn, '| aria-disabled:', btn && btn.getAttribute('aria-disabled'));
+    console.log('[PS] btn:', !!btn, 'aria-disabled:', btn && btn.getAttribute('aria-disabled'));
 
     if (isButtonReady(btn)) {
       console.log('[PS] submit: immediate click');
@@ -107,56 +117,54 @@
       return;
     }
 
-    // Set up MutationObserver BEFORE firing any events,
-    // so we don't miss the attribute flip
-    const clickResult = await new Promise((resolve) => {
-      let resolved = false;
+    // Observe the button (and whole body as fallback) for aria-disabled removal
+    const result = await new Promise((resolve) => {
+      let done = false;
 
-      function tryClick(label) {
-        if (resolved) return;
+      function attempt(label) {
+        if (done) return;
         const b = findGeminiSendButton();
         if (!isButtonReady(b)) return;
-        resolved = true;
-        cleanup();
+        done = true;
+        btnObs.disconnect();
+        bodyObs.disconnect();
+        clearTimeout(timer);
         console.log('[PS] submit:', label);
         b.click();
         resolve(label);
       }
 
-      // Watch the button's own aria-disabled
-      const btnObserver = btn ? new MutationObserver(() => tryClick('btn-observer')) : null;
-      if (btn && btnObserver) {
-        btnObserver.observe(btn, { attributes: true, attributeFilter: ['aria-disabled', 'disabled'] });
+      // Watch the specific button element
+      const btnObs = new MutationObserver(() => attempt('btn-observer'));
+      if (btn) {
+        btnObs.observe(btn, {
+          attributes: true,
+          attributeFilter: ['aria-disabled', 'disabled']
+        });
       }
 
-      // Also watch the whole toolbar area for DOM changes
-      // (Gemini sometimes replaces the button element entirely)
-      const bodyObserver = new MutationObserver(() => tryClick('body-observer'));
-      bodyObserver.observe(document.body, {
+      // Watch body-level attribute changes (catches element replacement)
+      const bodyObs = new MutationObserver(() => attempt('body-observer'));
+      bodyObs.observe(document.body, {
         subtree: true,
         attributes: true,
         attributeFilter: ['aria-disabled', 'disabled']
       });
 
-      function cleanup() {
-        if (btnObserver) btnObserver.disconnect();
-        bodyObserver.disconnect();
-        clearTimeout(timer);
-      }
-
       const timer = setTimeout(() => {
-        if (resolved) return;
-        resolved = true;
-        cleanup();
-        console.log('[PS] submit: timeout — using Enter fallback');
+        if (done) return;
+        done = true;
+        btnObs.disconnect();
+        bodyObs.disconnect();
+        console.log('[PS] submit: 3s timeout');
         resolve('timeout');
       }, 3000);
     });
 
-    if (clickResult === 'timeout' && inputEl) {
-      // isSanitizing is false and text is already clean,
-      // so the keydown interceptor will see no sensitive data and skip
-      console.log('[PS] submit: dispatching Enter sequence');
+    if (result === 'timeout' && inputEl) {
+      // Text is already clean — keydown interceptor will see no sensitive data
+      // and skip, so no loop risk
+      console.log('[PS] submit: Enter fallback');
       for (const type of ['keydown', 'keypress', 'keyup']) {
         inputEl.dispatchEvent(new KeyboardEvent(type, {
           key: 'Enter', code: 'Enter',
@@ -173,7 +181,7 @@
     if (platform === 'gemini') {
       return autoSubmitGemini();
     }
-    // ChatGPT — React, native disabled
+    // ChatGPT — React, native disabled attribute
     await wait(200);
     const btn =
       document.querySelector('button[aria-label="Send message"]') ||

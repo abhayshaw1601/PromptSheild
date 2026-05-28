@@ -11,9 +11,18 @@
     );
   }
 
+  function getGeminiInput() {
+    // Prefer the Quill editor div (what Gemini actually uses)
+    return (
+      document.querySelector('.ql-editor') ||
+      document.querySelector('div[role="textbox"][aria-multiline="true"]') ||
+      null
+    );
+  }
+
   function getInputElement(platform) {
     if (platform === 'gemini') {
-      return document.querySelector(PromptShield.GEMINI_INPUT_SELECTOR);
+      return getGeminiInput();
     }
 
     return getChatGPTInput();
