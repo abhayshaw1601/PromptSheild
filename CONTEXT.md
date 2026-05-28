@@ -30,9 +30,11 @@ Completed changes:
 - Hardened AST traversal to use an iterative stack plus `WeakSet` cycle guard instead of recursion.
 - Changed structural fingerprints to use AST node types rather than identifier names so renamed code can still be detected.
 - Changed the scanner from whole-document Jaccard comparison to fixed-size rolling restricted-hash windows to avoid dilution in larger files.
+- Removed the synthetic root `Program` bigram from the prototype restricted GPL fingerprint so restricted snippets embedded inside larger files are detected.
 - Added `promptshield-vscode-extension/src/extension.ts` orchestration for save-time scanning, status bar state, and `PromptShield` diagnostics.
 - Added `promptshield-vscode-extension/src/promptShieldDiagnostics.ts` for diagnostic source/code constants.
 - Added `promptshield-vscode-extension/src/promptShieldCodeActions.ts` for Quick Fix actions.
+- Added `promptshield-vscode-extension/src/promptShieldLogger.ts` for timestamped `PromptShield` output-channel logs.
 - Added quick fixes:
   - `Copy Corporate Remediation Prompt`
   - `Auto-Fix with Local AI`
@@ -142,6 +144,7 @@ Important files:
 | `src/cleanScribeCore.ts` | Pure scanner module. Does not import `vscode`. |
 | `src/promptShieldDiagnostics.ts` | Diagnostic source and code constants. |
 | `src/promptShieldCodeActions.ts` | CodeActionProvider and local AI remediation command. |
+| `src/promptShieldLogger.ts` | Shared timestamped logger for the `PromptShield` Output panel. |
 | `test/cleanScribeCore.test.ts` | Jest tests for core scanner behavior. |
 | `webpack.config.js` | Bundles the extension entry into `dist/extension.js`. |
 
@@ -183,6 +186,13 @@ Ollama remediation details:
 - Request timeout: `120000` ms
 - Max response bytes: `2 * 1024 * 1024`
 - Error message instructs the user to start local Ollama and ensure one of the supported models is available.
+
+Debug logging:
+
+- PromptShield writes to the VS Code Output panel channel named `PromptShield`.
+- Logs are timestamped and prefixed with `[PromptShield]`.
+- Logged events include activation, save detection, diagnostic clearing, scan result counts, diagnostic creation, CodeActionProvider invocation, clipboard command execution, auto-fix execution, Ollama model attempts, HTTP status, response sizes, timeouts, and parse failures.
+- The logger intentionally records document URI, language, line counts, character counts, ranges, model names, status codes, and durations. It does not log full document source or full generated replacement code.
 
 ## Core Scanner Details
 
@@ -243,11 +253,12 @@ Current core tests in `test/cleanScribeCore.test.ts`:
 
 - Clean code returns zero violations.
 - Structurally plagiarized restricted logic returns one violation.
+- Structurally plagiarized restricted logic embedded in a larger file returns one violation.
 - FNV-1a hashing is stable and returns the expected integer for the same string.
 
 Last verified results:
 
-- Jest: 3 tests passed.
+- Jest: 4 tests passed.
 - TypeScript: zero errors.
 - Webpack: compiled successfully.
 - npm audit for VS Code extension: zero vulnerabilities.
@@ -416,4 +427,3 @@ Chrome extension:
 - If updating the Next.js app, first inspect the installed Next.js docs because the project uses a newer Next.js version.
 - Use `rg` to find stale names before renaming anything.
 - Use `npm.cmd` on Windows if PowerShell blocks `npm.ps1`.
-

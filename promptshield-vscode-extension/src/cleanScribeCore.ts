@@ -25,12 +25,38 @@ export interface AstBigram {
 export type ViolationSeverity = "low" | "medium" | "high" | "critical";
 
 /**
+ * Violation categories emitted by the PromptShield core scanner.
+ */
+export type ViolationType =
+  | "restricted-gpl-similarity"
+  | "copyleft-license-notice"
+  | "openai-api-key"
+  | "google-api-key"
+  | "aws-access-key-id"
+  | "bearer-token"
+  | "jwt-token"
+  | "private-key-material"
+  | "database-connection-string"
+  | "generic-secret-assignment"
+  | "email-address"
+  | "internal-url";
+
+/**
  * A compliance violation detected by the core scanner.
  */
 export interface ScanViolation {
   readonly line: number;
-  readonly violationType: "restricted-gpl-similarity";
+  readonly violationType: ViolationType;
   readonly severity: ViolationSeverity;
+}
+
+/**
+ * A regex scanner rule for deterministic sensitive-data findings.
+ */
+interface RegexScannerRule {
+  readonly violationType: ViolationType;
+  readonly severity: ViolationSeverity;
+  readonly pattern: RegExp;
 }
 
 /**
@@ -90,7 +116,6 @@ export class MockBloomFilter {
 }
 
 const restrictedGplHashes: readonly number[] = [
-  1836718064,
   4097420755,
   1641195545,
   1491177707,
@@ -98,6 +123,144 @@ const restrictedGplHashes: readonly number[] = [
 ];
 
 const restrictedGplFilter = new MockBloomFilter(restrictedGplHashes);
+
+const licenseSimilarityThreshold = 0.75;
+const maxRegexViolations = 100;
+
+const regexScannerRules: readonly RegexScannerRule[] = [
+  {
+    violationType: "private-key-material",
+    severity: "critical",
+    pattern: /-----BEGIN\s+(?:RSA|DSA|EC|OPENSSH|PGP)?\s*PRIVATE KEY-----/g
+  },
+  {
+    violationType: "openai-api-key",
+    severity: "critical",
+    pattern: /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/g
+  },
+  {
+    violationType: "google-api-key",
+    severity: "critical",
+    pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g
+  },
+  {
+    violationType: "aws-access-key-id",
+    severity: "critical",
+    pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g
+  },
+  {
+    violationType: "bearer-token",
+    severity: "high",
+    pattern: /\bBearer\s+[A-Za-z0-9._~+/=-]{20,}\b/g
+  },
+  {
+    violationType: "jwt-token",
+    severity: "high",
+    pattern: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
+  },
+  {
+    violationType: "database-connection-string",
+    severity: "high",
+    pattern: /\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis):\/\/[^\s"'`<>]+/gi
+  },
+  {
+    violationType: "generic-secret-assignment",
+    severity: "medium",
+    pattern: /\b(?:api[_-]?key|secret|token|password|passwd|pwd|client[_-]?secret)\b\s*[:=]\s*["'`][^"'`\s]{12,}["'`]/gi
+  },
+  {
+    violationType: "internal-url",
+    severity: "medium",
+    pattern: /\bhttps?:\/\/(?:localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]+\.internal)(?::\d{1,5})?(?:\/[^\s"'`]*)?/gi
+  },
+  {
+    violationType: "email-address",
+    severity: "low",
+    pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g
+  }
+];
+
+const copyleftLicenseNoticeRules: readonly RegexScannerRule[] = [
+  {
+    violationType: "copyleft-license-notice",
+    severity: "critical",
+    pattern: /GNU\s+General\s+Public\s+License/gi
+  },
+  {
+    violationType: "copyleft-license-notice",
+    severity: "critical",
+    pattern: /GNU\s+Affero\s+General\s+Public\s+License/gi
+  },
+  {
+    violationType: "copyleft-license-notice",
+    severity: "high",
+    pattern: /GNU\s+Lesser\s+General\s+Public\s+License/gi
+  },
+  {
+    violationType: "copyleft-license-notice",
+    severity: "critical",
+    pattern: /SPDX-License-Identifier:\s*(?:GPL|AGPL|LGPL)[^\s*]*/gi
+  },
+  {
+    violationType: "copyleft-license-notice",
+    severity: "critical",
+    pattern: /This\s+program\s+is\s+free\s+software:\s+you\s+can\s+redistribute\s+it/gi
+  }
+];
+
+const copyleftStructuralSignatures: readonly (readonly string[])[] = [
+  [
+    "KEYWORD_IMPORT",
+    "IDENTIFIER",
+    "KEYWORD_DEF",
+    "PAREN_START",
+    "PAREN_END",
+    "BLOCK_START",
+    "KEYWORD_TRY",
+    "BLOCK_START",
+    "KEYWORD_RETURN",
+    "IDENTIFIER",
+    "BLOCK_END",
+    "KEYWORD_CATCH",
+    "PAREN_START",
+    "IDENTIFIER",
+    "PAREN_END",
+    "BLOCK_START",
+    "KEYWORD_THROW",
+    "IDENTIFIER",
+    "BLOCK_END",
+    "BLOCK_END"
+  ],
+  [
+    "KEYWORD_DEF",
+    "IDENTIFIER",
+    "PAREN_START",
+    "PAREN_END",
+    "BLOCK_START",
+    "KEYWORD_VAR",
+    "IDENTIFIER",
+    "OPERATOR_ASSIGN",
+    "IDENTIFIER",
+    "KEYWORD_WHILE",
+    "PAREN_START",
+    "IDENTIFIER",
+    "OPERATOR_COMPARE",
+    "IDENTIFIER",
+    "PAREN_END",
+    "BLOCK_START",
+    "KEYWORD_IF",
+    "PAREN_START",
+    "IDENTIFIER",
+    "OPERATOR_LOGIC",
+    "IDENTIFIER",
+    "PAREN_END",
+    "BLOCK_START",
+    "KEYWORD_RETURN",
+    "IDENTIFIER",
+    "BLOCK_END",
+    "BLOCK_END"
+  ]
+];
 
 /**
  * Parses JavaScript or TypeScript-like source code with Acorn and extracts structural AST tokens.
@@ -178,21 +341,197 @@ export function fnv1a32(value: string): number {
  * @returns Compliance violations detected for the document.
  */
 export function scanDocument(code: string): ScanViolation[] {
+  const regexViolations = scanRegexViolations(code);
+
+  try {
+    return [...regexViolations, ...scanLicenseViolations(code)];
+  } catch {
+    return regexViolations;
+  }
+}
+
+/**
+ * Scans source text for deterministic secret, credential, and sensitive-data patterns.
+ *
+ * @param code The source code to scan.
+ * @returns Regex-based violations discovered before AST license analysis.
+ */
+export function scanRegexViolations(code: string): ScanViolation[] {
+  const lineStarts = buildLineStartIndexes(code);
+  const violations: ScanViolation[] = [];
+  const seenFindings = new Set<string>();
+
+  for (const rule of regexScannerRules) {
+    rule.pattern.lastIndex = 0;
+
+    for (const match of code.matchAll(rule.pattern)) {
+      if (match.index === undefined) {
+        continue;
+      }
+
+      const line = getLineNumberFromIndex(lineStarts, match.index);
+      const findingKey = `${rule.violationType}:${line}:${match[0]}`;
+
+      if (seenFindings.has(findingKey)) {
+        continue;
+      }
+
+      seenFindings.add(findingKey);
+      violations.push({
+        line,
+        violationType: rule.violationType,
+        severity: rule.severity
+      });
+
+      if (violations.length >= maxRegexViolations) {
+        return violations;
+      }
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * Builds a sorted index of character offsets where each source line starts.
+ *
+ * @param code The source text to index.
+ * @returns Zero-based character offsets for line starts.
+ */
+function buildLineStartIndexes(code: string): number[] {
+  const lineStarts = [0];
+
+  for (let index = 0; index < code.length; index += 1) {
+    if (code.charCodeAt(index) === 10) {
+      lineStarts.push(index + 1);
+    }
+  }
+
+  return lineStarts;
+}
+
+/**
+ * Converts a zero-based character offset to a one-based line number.
+ *
+ * @param lineStarts Sorted character offsets produced by buildLineStartIndexes.
+ * @param characterIndex Zero-based character offset of a finding.
+ * @returns One-based source line number.
+ */
+function getLineNumberFromIndex(lineStarts: readonly number[], characterIndex: number): number {
+  let low = 0;
+  let high = lineStarts.length - 1;
+
+  while (low <= high) {
+    const midpoint = Math.floor((low + high) / 2);
+    const lineStart = lineStarts[midpoint];
+    const nextLineStart = lineStarts[midpoint + 1] ?? Number.POSITIVE_INFINITY;
+
+    if (characterIndex >= lineStart && characterIndex < nextLineStart) {
+      return midpoint + 1;
+    }
+
+    if (characterIndex < lineStart) {
+      high = midpoint - 1;
+    } else {
+      low = midpoint + 1;
+    }
+  }
+
+  return lineStarts.length;
+}
+
+/**
+ * Scans source code for similarity against the prototype restricted GPL fingerprint set.
+ *
+ * @param code The JavaScript or TypeScript source code to scan.
+ * @returns License-similarity violations detected for the document.
+ */
+function scanLicenseViolations(code: string): ScanViolation[] {
+  const licenseNoticeViolation = scanCopyleftLicenseNotice(code);
+
+  if (licenseNoticeViolation !== undefined) {
+    return [licenseNoticeViolation];
+  }
+
   const tokens = parseAstTokens(code);
   const bigrams = extractBigrams(tokens);
   const documentHashes = bigrams.map((bigram) => fnv1a32(bigram.value));
   const restrictedHashes = restrictedGplFilter.values();
   const similarityResult = calculateBestRestrictedSimilarity(documentHashes, restrictedHashes);
 
-  if (similarityResult.score < 0.75) {
+  if (similarityResult.score >= licenseSimilarityThreshold) {
+    return [
+      {
+        line: findFirstMatchedLine(bigrams, restrictedHashes, similarityResult.startIndex),
+        violationType: "restricted-gpl-similarity",
+        severity: severityFromSimilarity(similarityResult.score)
+      }
+    ];
+  }
+
+  return scanGenericCopyleftStructuralViolation(code);
+}
+
+/**
+ * Finds explicit copyleft license notices such as GPL/AGPL/LGPL headers.
+ *
+ * @param code The source text to scan.
+ * @returns A license notice violation when a copyleft header is found.
+ */
+function scanCopyleftLicenseNotice(code: string): ScanViolation | undefined {
+  const lineStarts = buildLineStartIndexes(code);
+
+  for (const rule of copyleftLicenseNoticeRules) {
+    rule.pattern.lastIndex = 0;
+
+    const match = rule.pattern.exec(code);
+
+    if (match?.index !== undefined) {
+      return {
+        line: getLineNumberFromIndex(lineStarts, match.index),
+        violationType: rule.violationType,
+        severity: rule.severity
+      };
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Runs a generic token-signature fallback for restricted copyleft structural patterns.
+ *
+ * @param code The source code to scan.
+ * @returns A restricted similarity violation when the fallback signature matches.
+ */
+function scanGenericCopyleftStructuralViolation(code: string): ScanViolation[] {
+  const tokens = tokenizeGenericStructure(code);
+
+  if (tokens.length < 5) {
+    return [];
+  }
+
+  const inputBigrams = extractGenericBigrams(tokens);
+  let bestSimilarity = 0;
+
+  for (const signature of copyleftStructuralSignatures) {
+    const signatureBigrams = extractGenericBigrams(signature);
+    const similarity = calculateStringJaccardSimilarity(inputBigrams, signatureBigrams);
+
+    if (similarity > bestSimilarity) {
+      bestSimilarity = similarity;
+    }
+  }
+
+  if (bestSimilarity < licenseSimilarityThreshold) {
     return [];
   }
 
   return [
     {
-      line: findFirstMatchedLine(bigrams, restrictedHashes, similarityResult.startIndex),
+      line: findFirstGenericStructuralLine(code),
       violationType: "restricted-gpl-similarity",
-      severity: severityFromSimilarity(similarityResult.score)
+      severity: severityFromSimilarity(bestSimilarity)
     }
   ];
 }
@@ -219,6 +558,181 @@ export function calculateJaccardSimilarity(left: ReadonlySet<number>, right: Rea
 
   const unionSize = new Set<number>([...left, ...right]).size;
   return unionSize === 0 ? 0 : intersectionSize / unionSize;
+}
+
+/**
+ * Calculates the Jaccard similarity between two string token sets.
+ *
+ * @param left The first token set.
+ * @param right The second token set.
+ * @returns The Jaccard index from 0 to 1.
+ */
+function calculateStringJaccardSimilarity(left: ReadonlySet<string>, right: ReadonlySet<string>): number {
+  if (left.size === 0 && right.size === 0) {
+    return 1;
+  }
+
+  let intersectionSize = 0;
+
+  for (const value of left) {
+    if (right.has(value)) {
+      intersectionSize += 1;
+    }
+  }
+
+  const unionSize = new Set<string>([...left, ...right]).size;
+  return unionSize === 0 ? 0 : intersectionSize / unionSize;
+}
+
+/**
+ * Extracts generic structural bigrams from a token sequence.
+ *
+ * @param tokens Ordered generic structural tokens.
+ * @returns Adjacent token-pair signatures.
+ */
+function extractGenericBigrams(tokens: readonly string[]): Set<string> {
+  const bigrams = new Set<string>();
+
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    bigrams.add(`${tokens[index]}__${tokens[index + 1]}`);
+  }
+
+  return bigrams;
+}
+
+/**
+ * Tokenizes source into language-agnostic structural markers for fallback matching.
+ *
+ * @param code The source code to tokenize.
+ * @returns A normalized token sequence.
+ */
+function tokenizeGenericStructure(code: string): string[] {
+  const cleanedCode = code
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/'''[\s\S]*?'''/g, "")
+    .replace(/"""[\s\S]*?"""/g, "")
+    .replace(/\/\/.*/g, "")
+    .replace(/#.*/g, "")
+    .replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, "TOKEN_STRING")
+    .replace(/&&|\|\|/g, " OPERATOR_LOGIC ")
+    .replace(/\b\d+\b/g, " IDENTIFIER ");
+
+  const pieces = cleanedCode.split(/(\s+|\b|[{}()[\]+\-*/=<>!&|;,])/g);
+  const tokens: string[] = [];
+
+  for (const piece of pieces) {
+    const token = mapGenericStructuralToken(piece.trim());
+
+    if (token !== undefined) {
+      tokens.push(token);
+    }
+  }
+
+  return tokens;
+}
+
+/**
+ * Maps source text fragments into generic structural tokens.
+ *
+ * @param value The source fragment to classify.
+ * @returns A normalized structural token, or undefined for ignored fragments.
+ */
+function mapGenericStructuralToken(value: string): string | undefined {
+  if (value.length === 0) {
+    return undefined;
+  }
+
+  switch (value) {
+    case "if":
+      return "KEYWORD_IF";
+    case "else":
+    case "elif":
+      return "KEYWORD_ELSE";
+    case "for":
+      return "KEYWORD_FOR";
+    case "while":
+      return "KEYWORD_WHILE";
+    case "return":
+      return "KEYWORD_RETURN";
+    case "def":
+    case "func":
+    case "function":
+      return "KEYWORD_DEF";
+    case "class":
+      return "KEYWORD_CLASS";
+    case "import":
+    case "include":
+    case "require":
+      return "KEYWORD_IMPORT";
+    case "try":
+      return "KEYWORD_TRY";
+    case "catch":
+    case "except":
+      return "KEYWORD_CATCH";
+    case "throw":
+      return "KEYWORD_THROW";
+    case "const":
+    case "let":
+    case "var":
+      return "KEYWORD_VAR";
+    case "{":
+      return "BLOCK_START";
+    case "}":
+      return "BLOCK_END";
+    case "(":
+      return "PAREN_START";
+    case ")":
+      return "PAREN_END";
+    case "[":
+      return "BRACKET_START";
+    case "]":
+      return "BRACKET_END";
+    case "+":
+    case "-":
+    case "*":
+    case "/":
+      return "OPERATOR_MATH";
+    case "=":
+    case "==":
+    case "===":
+      return "OPERATOR_ASSIGN";
+    case "<":
+    case ">":
+    case "<=":
+    case ">=":
+    case "!=":
+    case "!==":
+      return "OPERATOR_COMPARE";
+    case "&&":
+    case "||":
+    case "!":
+    case "OPERATOR_LOGIC":
+      return "OPERATOR_LOGIC";
+    case ";":
+      return "SEMICOLON";
+    case "TOKEN_STRING":
+      return "STRING";
+    default:
+      return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value) ? "IDENTIFIER" : undefined;
+  }
+}
+
+/**
+ * Finds a useful display line for a generic structural license match.
+ *
+ * @param code The source code that matched a generic signature.
+ * @returns One-based line number for the diagnostic.
+ */
+function findFirstGenericStructuralLine(code: string): number {
+  const lines = code.split(/\r?\n/);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (/\b(?:function|def|func|while|try)\b/.test(lines[index])) {
+      return index + 1;
+    }
+  }
+
+  return 1;
 }
 
 /**
@@ -368,11 +882,11 @@ function findFirstMatchedLine(
  * @returns A severity level.
  */
 function severityFromSimilarity(similarity: number): ViolationSeverity {
-  if (similarity >= 0.95) {
+  if (similarity >= licenseSimilarityThreshold) {
     return "critical";
   }
 
-  if (similarity >= 0.85) {
+  if (similarity >= 0.6) {
     return "high";
   }
 
