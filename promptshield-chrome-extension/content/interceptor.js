@@ -1,6 +1,7 @@
 (function (root) {
   const PromptShield = root.PromptShield || (root.PromptShield = {});
   let debounceTimer = null;
+  PromptShield.lastSanitizedText = '';
 
   function sendChromeMessage(payload) {
     return new Promise((resolve) => {
@@ -18,9 +19,12 @@
     return (
       '\uD83D\uDEE1\uFE0F PromptShield: ' +
       response.fieldCount +
-      ' field(s) masked via ' +
-      (response.ollamaUsed ? 'local AI' : 'regex')
+      ' field(s) masked'
     );
+  }
+
+  function formatSendingToastMessage(response) {
+    return '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked · sending...';
   }
 
   function clearDebounceTimer() {
@@ -28,7 +32,32 @@
     debounceTimer = null;
   }
 
-  async function runPipeline(inputEl, platform) {
+  function hasLocalSensitiveData(text) {
+    if (text === PromptShield.lastSanitizedText) return false;
+
+    const placeholderValues = new Set([
+      '[API-KEY-REDACTED]',
+      'user@redacted.com',
+      'XXX-XX-XXXX',
+      '+X-XXX-XXX-XXXX',
+      '[PASSWORD-REDACTED]',
+      '[NAME-REDACTED]',
+      '[DB-URL-REDACTED]',
+      '0.0.0.0',
+      'XXXX-XXXX-XXXX-XXXX',
+      '[SECRET-REDACTED]',
+      '[REDACTED]'
+    ]);
+    const entities = [
+      ...PromptShield.scanWithRegex(text),
+      ...PromptShield.scanForNames(text),
+      ...PromptShield.scanCodeTokens(text)
+    ];
+
+    return entities.some((entity) => !placeholderValues.has(entity.value));
+  }
+
+  async function runPipeline(inputEl, platform, options = {}) {
     if (PromptShield.isSanitizing) return null;
     if (!inputEl || !document.contains(inputEl)) return null;
 
@@ -44,7 +73,16 @@
     if (!response || !response.sanitized) return response || null;
 
     await PromptShield.injectSanitizedText(inputEl, response.text);
-    PromptShield.showToast(formatToastMessage(response), response.ollamaUsed ? 'success' : 'warning');
+    PromptShield.lastSanitizedText = response.text.trim();
+    PromptShield.showToast(
+      options.autoSubmit ? formatSendingToastMessage(response) : formatToastMessage(response),
+      response.ollamaUsed ? 'success' : 'warning'
+    );
+
+    if (options.autoSubmit) {
+      await PromptShield.autoSubmit(platform);
+    }
+
     return response;
   }
 
@@ -71,25 +109,9 @@
     });
   }
 
-  function getSendButton() {
-    return (
-      document.querySelector('button[aria-label="Send message"]') ||
-      document.querySelector('[data-testid="send-button"]') ||
-      document.querySelector('button[aria-label="Send prompt"]') ||
-      null
-    );
-  }
-
-  function clickSendButton() {
-    const sendBtn = getSendButton();
-    if (sendBtn && !sendBtn.disabled) {
-      sendBtn.click();
-    }
-  }
-
   PromptShield.sendChromeMessage = sendChromeMessage;
   PromptShield.clearDebounceTimer = clearDebounceTimer;
+  PromptShield.hasLocalSensitiveData = hasLocalSensitiveData;
   PromptShield.runPipeline = runPipeline;
-  PromptShield.clickSendButton = clickSendButton;
   PromptShield.attachInterceptor = attachInterceptor;
 })(globalThis);
