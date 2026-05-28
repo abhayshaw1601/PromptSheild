@@ -54,3 +54,6 @@ yarn-error.log*
 
 # Vercel
 .vercel
+
+# Pipeline intermediate downloads
+.pipeline_cache/

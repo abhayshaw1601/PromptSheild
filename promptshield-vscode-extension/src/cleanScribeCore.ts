@@ -1,4 +1,7 @@
 import { Parser, type Node } from "acorn";
+import { LocalBloomFilter } from "./localBloomFilter";
+import * as path from "path";
+import * as fs from "fs";
 
 /**
  * A structural token extracted from an Acorn AST node.
@@ -81,50 +84,71 @@ interface TraversableAstNode extends Node {
 }
 
 /**
- * A mock Bloom filter backed by a Set for deterministic prototype behavior.
+ * The active binary Bloom filter loaded from a compiled filter.bin file.
+ * Initialized lazily on first scan or explicitly via initializeBloomFilter().
  */
-export class MockBloomFilter {
-  private readonly restrictedHashes: Set<number>;
+let activeBloomFilter: LocalBloomFilter | null = null;
+let bloomFilterPath: string = "";
 
-  /**
-   * Creates a mock Bloom filter with the provided restricted integer hashes.
-   *
-   * @param hashes Pre-computed 32-bit FNV-1a hashes for restricted code bigrams.
-   */
-  public constructor(hashes: readonly number[]) {
-    this.restrictedHashes = new Set<number>(hashes);
-  }
-
-  /**
-   * Checks whether a hash is present in the prototype restricted-code set.
-   *
-   * @param hash The 32-bit integer hash to test.
-   * @returns True when the hash is present in the restricted set.
-   */
-  public has(hash: number): boolean {
-    return this.restrictedHashes.has(hash);
-  }
-
-  /**
-   * Returns a copy of all restricted hashes in the prototype filter.
-   *
-   * @returns A Set containing the restricted hashes.
-   */
-  public values(): Set<number> {
-    return new Set<number>(this.restrictedHashes);
+/**
+ * Initializes the binary Bloom filter from a compiled .bin file.
+ *
+ * @param filterPath Absolute path to the filter.bin file.
+ */
+export function initializeBloomFilter(filterPath: string): void {
+  if (fs.existsSync(filterPath)) {
+    activeBloomFilter = LocalBloomFilter.fromFile(filterPath);
+    bloomFilterPath = filterPath;
   }
 }
 
-const restrictedGplHashes: readonly number[] = [
-  4097420755,
-  1641195545,
-  1491177707,
-  1749585002
-];
+/**
+ * Reloads the Bloom filter from disk (used after weekly sync updates).
+ *
+ * @param filterPath Absolute path to the updated filter.bin file.
+ */
+export function reloadBloomFilter(filterPath: string): void {
+  if (fs.existsSync(filterPath)) {
+    const buffer = fs.readFileSync(filterPath);
+    if (activeBloomFilter !== null) {
+      activeBloomFilter.reload(buffer);
+    } else {
+      activeBloomFilter = new LocalBloomFilter(buffer);
+    }
+    bloomFilterPath = filterPath;
+  }
+}
 
-const restrictedGplFilter = new MockBloomFilter(restrictedGplHashes);
+/**
+ * Returns the path to the currently loaded Bloom filter file.
+ */
+export function getBloomFilterPath(): string {
+  return bloomFilterPath;
+}
 
-const licenseSimilarityThreshold = 0.75;
+/**
+ * Attempts to auto-discover and load the default bundled filter.bin.
+ * Searches relative to the module location for resources/filter.bin.
+ */
+function ensureBloomFilterLoaded(): void {
+  if (activeBloomFilter !== null) {
+    return;
+  }
+
+  const candidates = [
+    path.resolve(__dirname, "..", "resources", "filter.bin"),
+    path.resolve(__dirname, "resources", "filter.bin"),
+    path.resolve(__dirname, "..", "..", "resources", "filter.bin")
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      initializeBloomFilter(candidate);
+      return;
+    }
+  }
+}
+
 const maxRegexViolations = 100;
 
 const regexScannerRules: readonly RegexScannerRule[] = [
@@ -205,62 +229,15 @@ const copyleftLicenseNoticeRules: readonly RegexScannerRule[] = [
     violationType: "copyleft-license-notice",
     severity: "critical",
     pattern: /This\s+program\s+is\s+free\s+software:\s+you\s+can\s+redistribute\s+it/gi
+  },
+  {
+    violationType: "copyleft-license-notice",
+    severity: "critical",
+    pattern: /\b(?:GPL|AGPL|LGPL)(?:-v?[\d.]+)?\s+License\b/gi
   }
 ];
 
-const copyleftStructuralSignatures: readonly (readonly string[])[] = [
-  [
-    "KEYWORD_IMPORT",
-    "IDENTIFIER",
-    "KEYWORD_DEF",
-    "PAREN_START",
-    "PAREN_END",
-    "BLOCK_START",
-    "KEYWORD_TRY",
-    "BLOCK_START",
-    "KEYWORD_RETURN",
-    "IDENTIFIER",
-    "BLOCK_END",
-    "KEYWORD_CATCH",
-    "PAREN_START",
-    "IDENTIFIER",
-    "PAREN_END",
-    "BLOCK_START",
-    "KEYWORD_THROW",
-    "IDENTIFIER",
-    "BLOCK_END",
-    "BLOCK_END"
-  ],
-  [
-    "KEYWORD_DEF",
-    "IDENTIFIER",
-    "PAREN_START",
-    "PAREN_END",
-    "BLOCK_START",
-    "KEYWORD_VAR",
-    "IDENTIFIER",
-    "OPERATOR_ASSIGN",
-    "IDENTIFIER",
-    "KEYWORD_WHILE",
-    "PAREN_START",
-    "IDENTIFIER",
-    "OPERATOR_COMPARE",
-    "IDENTIFIER",
-    "PAREN_END",
-    "BLOCK_START",
-    "KEYWORD_IF",
-    "PAREN_START",
-    "IDENTIFIER",
-    "OPERATOR_LOGIC",
-    "IDENTIFIER",
-    "PAREN_END",
-    "BLOCK_START",
-    "KEYWORD_RETURN",
-    "IDENTIFIER",
-    "BLOCK_END",
-    "BLOCK_END"
-  ]
-];
+
 
 /**
  * Parses JavaScript or TypeScript-like source code with Acorn and extracts structural AST tokens.
@@ -446,6 +423,12 @@ function getLineNumberFromIndex(lineStarts: readonly number[], characterIndex: n
  * @param code The JavaScript or TypeScript source code to scan.
  * @returns License-similarity violations detected for the document.
  */
+/**
+ * Scans source code for similarity against the binary Bloom filter of restricted licenses.
+ *
+ * @param code The JavaScript or TypeScript source code to scan.
+ * @returns License-similarity violations detected for the document.
+ */
 function scanLicenseViolations(code: string): ScanViolation[] {
   const licenseNoticeViolation = scanCopyleftLicenseNotice(code);
 
@@ -453,23 +436,238 @@ function scanLicenseViolations(code: string): ScanViolation[] {
     return [licenseNoticeViolation];
   }
 
-  const tokens = parseAstTokens(code);
-  const bigrams = extractBigrams(tokens);
-  const documentHashes = bigrams.map((bigram) => fnv1a32(bigram.value));
-  const restrictedHashes = restrictedGplFilter.values();
-  const similarityResult = calculateBestRestrictedSimilarity(documentHashes, restrictedHashes);
-
-  if (similarityResult.score >= licenseSimilarityThreshold) {
-    return [
-      {
-        line: findFirstMatchedLine(bigrams, restrictedHashes, similarityResult.startIndex),
-        violationType: "restricted-gpl-similarity",
-        severity: severityFromSimilarity(similarityResult.score)
-      }
-    ];
+  // Attempt binary Bloom filter scan (production path)
+  const bloomViolation = scanWithBloomFilter(code);
+  if (bloomViolation !== undefined) {
+    return [bloomViolation];
   }
 
-  return scanGenericCopyleftStructuralViolation(code);
+  return [];
+}
+
+/**
+ * Scans source code against the binary Bloom filter using multi-language
+ * structural tokenization.
+ *
+ * @param code The source code to scan.
+ * @returns A violation if the code structurally matches restricted signatures, or undefined.
+ */
+function scanWithBloomFilter(code: string): ScanViolation | undefined {
+  ensureBloomFilterLoaded();
+
+  if (activeBloomFilter === null || !activeBloomFilter.isLoaded) {
+    return undefined;
+  }
+
+  // Use the unified multi-language tokenizer (same as the compiler)
+  const tokens = tokenizeForBloomCheck(code);
+  if (tokens.length < 50) {
+    return undefined;
+  }
+
+  const BOILERPLATE_TOKENS = new Set<string>([
+    "VAR_DECL",
+    "ASSIGN",
+    "DOT",
+    "PAREN_OPEN",
+    "PAREN_CLOSE",
+    "BLOCK_OPEN",
+    "BLOCK_CLOSE",
+    "BRACKET_OPEN",
+    "BRACKET_CLOSE",
+    "SEMI",
+    "COMMA",
+    "COLON",
+    "LIT_STR",
+    "LIT_NUM",
+    "IDENT"
+  ]);
+
+  // Build trigrams and hash them
+  const trigrams: string[] = [];
+  for (let i = 0; i < tokens.length - 2; i += 1) {
+    const t1 = tokens[i];
+    const t2 = tokens[i + 1];
+    const t3 = tokens[i + 2];
+    if (!(BOILERPLATE_TOKENS.has(t1) && BOILERPLATE_TOKENS.has(t2) && BOILERPLATE_TOKENS.has(t3))) {
+      trigrams.push(`${t1}_${t2}_${t3}`);
+    }
+  }
+
+  const hashes = trigrams.map((b) => fnv1a32(b));
+
+  // Use a rolling window approach to find localized matches.
+  // A window of 24 provides strong structural specificity.
+  const windowSize = 24;
+  const bloomMatchThreshold = 0.95;
+
+  if (hashes.length < windowSize) {
+    return undefined;
+  }
+
+  let bestMatchRatio = 0;
+  let bestWindowStart = 0;
+
+  for (let start = 0; start <= hashes.length - windowSize; start += 1) {
+    const window = hashes.slice(start, start + windowSize);
+    const matchCount = activeBloomFilter.countMatches(window);
+    const ratio = matchCount / windowSize;
+
+    if (ratio > bestMatchRatio) {
+      bestMatchRatio = ratio;
+      bestWindowStart = start;
+    }
+
+    if (bestMatchRatio >= 1.0) {
+      break;
+    }
+  }
+
+  if (bestMatchRatio >= bloomMatchThreshold) {
+    const matchLine = findLineForTokenIndex(code, bestWindowStart);
+    return {
+      line: matchLine,
+      violationType: "restricted-gpl-similarity",
+      severity: severityFromSimilarity(bestMatchRatio)
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * Tokenizes source code into structural tokens for Bloom filter checking.
+ * This mirrors the compiler's tokenization logic so hashes match.
+ *
+ * @param code The source code to tokenize.
+ * @returns Ordered structural token strings.
+ */
+function tokenizeForBloomCheck(code: string): string[] {
+  let cleaned = code;
+  cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, " ");
+  cleaned = cleaned.replace(/'''[\s\S]*?'''/g, " ");
+  cleaned = cleaned.replace(/"""[\s\S]*?"""/g, " ");
+  cleaned = cleaned.replace(/\/\/.*/g, " ");
+  cleaned = cleaned.replace(/#.*/g, " ");
+  cleaned = cleaned.replace(/`(?:[^`\\]|\\.)*`/g, " STR ");
+  cleaned = cleaned.replace(/"(?:[^"\\]|\\.)*"/g, " STR ");
+  cleaned = cleaned.replace(/'(?:[^'\\]|\\.)*'/g, " STR ");
+  cleaned = cleaned.replace(/\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, " NUM ");
+
+  const pieces = cleaned
+    .split(/(\s+|\b|[{}()\[\]+\-*/=<>!&|;,:?.@#~^%])/g)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  const tokens: string[] = [];
+  for (const piece of pieces) {
+    const token = classifyBloomToken(piece);
+    if (token !== undefined) {
+      tokens.push(token);
+    }
+  }
+
+  return tokens;
+}
+
+/**
+ * Classifies a lexeme into a structural token using the same scheme as the compiler.
+ * Must produce identical tokens for identical code so hashes match the filter.
+ *
+ * @param lexeme The source fragment to classify.
+ * @returns A structural token or undefined.
+ */
+function classifyBloomToken(lexeme: string): string | undefined {
+  if (lexeme.length === 0) {
+    return undefined;
+  }
+
+  switch (lexeme) {
+    case "function": case "def": case "func": return "FN_DEF";
+    case "class": case "struct": case "interface": return "CLASS_DEF";
+    case "if": return "IF";
+    case "else": case "elif": return "ELSE";
+    case "switch": case "match": return "SWITCH";
+    case "case": return "CASE";
+    case "for": return "FOR";
+    case "while": return "WHILE";
+    case "do": return "DO";
+    case "range": return "RANGE";
+    case "in": return "IN";
+    case "try": return "TRY";
+    case "catch": case "except": return "CATCH";
+    case "finally": return "FINALLY";
+    case "throw": case "raise": return "THROW";
+    case "return": return "RETURN";
+    case "yield": return "YIELD";
+    case "async": return "ASYNC";
+    case "await": return "AWAIT";
+    case "const": case "let": case "var": case "val": return "VAR_DECL";
+    case "import": case "require": case "from": case "include": return "IMPORT";
+    case "export": case "package": case "module": return "EXPORT";
+    case "new": return "NEW";
+    case "this": case "self": return "SELF";
+    case "extends": case "implements": return "INHERITS";
+    case "abstract": return "ABSTRACT";
+    case "static": return "STATIC";
+    case "public": case "private": case "protected": return "ACCESS_MOD";
+    case "true": case "false": case "True": case "False": return "BOOL";
+    case "null": case "nil": case "None": case "undefined": return "NULL";
+    case "{": return "BLOCK_OPEN";
+    case "}": return "BLOCK_CLOSE";
+    case "(": return "PAREN_OPEN";
+    case ")": return "PAREN_CLOSE";
+    case "[": return "BRACKET_OPEN";
+    case "]": return "BRACKET_CLOSE";
+    case "=": case ":=": return "ASSIGN";
+    case "==": case "===": case "!=": case "!==": case "<": case ">": case "<=": case ">=": return "COMPARE";
+    case "+": case "-": case "*": case "/": case "%": case "**": return "MATH";
+    case "&&": case "||": case "!": case "and": case "or": case "not": return "LOGIC";
+    case ";": return "SEMI";
+    case ",": return "COMMA";
+    case ".": return "DOT";
+    case "=>": case "->": return "ARROW";
+    case ":": return "COLON";
+    case "STR": return "LIT_STR";
+    case "NUM": return "LIT_NUM";
+    case "defer": case "go": case "chan": case "select": return "GO_KEYWORD";
+    case "lambda": return "LAMBDA";
+    case "with": return "WITH";
+    case "as": return "AS";
+    case "is": return "IS";
+    case "instanceof": case "typeof": return "TYPE_CHECK";
+    case "break": return "BREAK";
+    case "continue": return "CONTINUE";
+    case "default": return "DEFAULT";
+    default:
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(lexeme)) {
+        return "IDENT";
+      }
+      return undefined;
+  }
+}
+
+/**
+ * Maps a token index back to a source line number for diagnostic reporting.
+ *
+ * @param code The original source code.
+ * @param tokenIndex The index of the matched token window.
+ * @returns A one-based line number.
+ */
+function findLineForTokenIndex(code: string, tokenIndex: number): number {
+  const lines = code.split(/\r?\n/);
+  let tokenCounter = 0;
+
+  for (let lineNum = 0; lineNum < lines.length; lineNum += 1) {
+    const lineTokens = lines[lineNum].split(/\s+|\b/).filter((s) => s.trim().length > 0);
+    tokenCounter += lineTokens.length;
+
+    if (tokenCounter > tokenIndex) {
+      return lineNum + 1;
+    }
+  }
+
+  return 1;
 }
 
 /**
@@ -498,242 +696,7 @@ function scanCopyleftLicenseNotice(code: string): ScanViolation | undefined {
   return undefined;
 }
 
-/**
- * Runs a generic token-signature fallback for restricted copyleft structural patterns.
- *
- * @param code The source code to scan.
- * @returns A restricted similarity violation when the fallback signature matches.
- */
-function scanGenericCopyleftStructuralViolation(code: string): ScanViolation[] {
-  const tokens = tokenizeGenericStructure(code);
 
-  if (tokens.length < 5) {
-    return [];
-  }
-
-  const inputBigrams = extractGenericBigrams(tokens);
-  let bestSimilarity = 0;
-
-  for (const signature of copyleftStructuralSignatures) {
-    const signatureBigrams = extractGenericBigrams(signature);
-    const similarity = calculateStringJaccardSimilarity(inputBigrams, signatureBigrams);
-
-    if (similarity > bestSimilarity) {
-      bestSimilarity = similarity;
-    }
-  }
-
-  if (bestSimilarity < licenseSimilarityThreshold) {
-    return [];
-  }
-
-  return [
-    {
-      line: findFirstGenericStructuralLine(code),
-      violationType: "restricted-gpl-similarity",
-      severity: severityFromSimilarity(bestSimilarity)
-    }
-  ];
-}
-
-/**
- * Calculates the Jaccard similarity between two integer hash sets.
- *
- * @param left The first hash set.
- * @param right The second hash set.
- * @returns The Jaccard index from 0 to 1.
- */
-export function calculateJaccardSimilarity(left: ReadonlySet<number>, right: ReadonlySet<number>): number {
-  if (left.size === 0 && right.size === 0) {
-    return 1;
-  }
-
-  let intersectionSize = 0;
-
-  for (const value of left) {
-    if (right.has(value)) {
-      intersectionSize += 1;
-    }
-  }
-
-  const unionSize = new Set<number>([...left, ...right]).size;
-  return unionSize === 0 ? 0 : intersectionSize / unionSize;
-}
-
-/**
- * Calculates the Jaccard similarity between two string token sets.
- *
- * @param left The first token set.
- * @param right The second token set.
- * @returns The Jaccard index from 0 to 1.
- */
-function calculateStringJaccardSimilarity(left: ReadonlySet<string>, right: ReadonlySet<string>): number {
-  if (left.size === 0 && right.size === 0) {
-    return 1;
-  }
-
-  let intersectionSize = 0;
-
-  for (const value of left) {
-    if (right.has(value)) {
-      intersectionSize += 1;
-    }
-  }
-
-  const unionSize = new Set<string>([...left, ...right]).size;
-  return unionSize === 0 ? 0 : intersectionSize / unionSize;
-}
-
-/**
- * Extracts generic structural bigrams from a token sequence.
- *
- * @param tokens Ordered generic structural tokens.
- * @returns Adjacent token-pair signatures.
- */
-function extractGenericBigrams(tokens: readonly string[]): Set<string> {
-  const bigrams = new Set<string>();
-
-  for (let index = 0; index < tokens.length - 1; index += 1) {
-    bigrams.add(`${tokens[index]}__${tokens[index + 1]}`);
-  }
-
-  return bigrams;
-}
-
-/**
- * Tokenizes source into language-agnostic structural markers for fallback matching.
- *
- * @param code The source code to tokenize.
- * @returns A normalized token sequence.
- */
-function tokenizeGenericStructure(code: string): string[] {
-  const cleanedCode = code
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/'''[\s\S]*?'''/g, "")
-    .replace(/"""[\s\S]*?"""/g, "")
-    .replace(/\/\/.*/g, "")
-    .replace(/#.*/g, "")
-    .replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, "TOKEN_STRING")
-    .replace(/&&|\|\|/g, " OPERATOR_LOGIC ")
-    .replace(/\b\d+\b/g, " IDENTIFIER ");
-
-  const pieces = cleanedCode.split(/(\s+|\b|[{}()[\]+\-*/=<>!&|;,])/g);
-  const tokens: string[] = [];
-
-  for (const piece of pieces) {
-    const token = mapGenericStructuralToken(piece.trim());
-
-    if (token !== undefined) {
-      tokens.push(token);
-    }
-  }
-
-  return tokens;
-}
-
-/**
- * Maps source text fragments into generic structural tokens.
- *
- * @param value The source fragment to classify.
- * @returns A normalized structural token, or undefined for ignored fragments.
- */
-function mapGenericStructuralToken(value: string): string | undefined {
-  if (value.length === 0) {
-    return undefined;
-  }
-
-  switch (value) {
-    case "if":
-      return "KEYWORD_IF";
-    case "else":
-    case "elif":
-      return "KEYWORD_ELSE";
-    case "for":
-      return "KEYWORD_FOR";
-    case "while":
-      return "KEYWORD_WHILE";
-    case "return":
-      return "KEYWORD_RETURN";
-    case "def":
-    case "func":
-    case "function":
-      return "KEYWORD_DEF";
-    case "class":
-      return "KEYWORD_CLASS";
-    case "import":
-    case "include":
-    case "require":
-      return "KEYWORD_IMPORT";
-    case "try":
-      return "KEYWORD_TRY";
-    case "catch":
-    case "except":
-      return "KEYWORD_CATCH";
-    case "throw":
-      return "KEYWORD_THROW";
-    case "const":
-    case "let":
-    case "var":
-      return "KEYWORD_VAR";
-    case "{":
-      return "BLOCK_START";
-    case "}":
-      return "BLOCK_END";
-    case "(":
-      return "PAREN_START";
-    case ")":
-      return "PAREN_END";
-    case "[":
-      return "BRACKET_START";
-    case "]":
-      return "BRACKET_END";
-    case "+":
-    case "-":
-    case "*":
-    case "/":
-      return "OPERATOR_MATH";
-    case "=":
-    case "==":
-    case "===":
-      return "OPERATOR_ASSIGN";
-    case "<":
-    case ">":
-    case "<=":
-    case ">=":
-    case "!=":
-    case "!==":
-      return "OPERATOR_COMPARE";
-    case "&&":
-    case "||":
-    case "!":
-    case "OPERATOR_LOGIC":
-      return "OPERATOR_LOGIC";
-    case ";":
-      return "SEMICOLON";
-    case "TOKEN_STRING":
-      return "STRING";
-    default:
-      return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value) ? "IDENTIFIER" : undefined;
-  }
-}
-
-/**
- * Finds a useful display line for a generic structural license match.
- *
- * @param code The source code that matched a generic signature.
- * @returns One-based line number for the diagnostic.
- */
-function findFirstGenericStructuralLine(code: string): number {
-  const lines = code.split(/\r?\n/);
-
-  for (let index = 0; index < lines.length; index += 1) {
-    if (/\b(?:function|def|func|while|try)\b/.test(lines[index])) {
-      return index + 1;
-    }
-  }
-
-  return 1;
-}
 
 /**
  * Walks an AST node and appends structural tokens in deterministic traversal order.
@@ -853,36 +816,13 @@ function isTraversalMetadataKey(key: string): boolean {
 }
 
 /**
- * Finds the first source line associated with a bigram that matches the restricted set.
- *
- * @param bigrams The ordered document bigrams.
- * @param restrictedHashes The restricted hash set.
- * @returns The first matching line, or line 1 when no specific match can be located.
- */
-function findFirstMatchedLine(
-  bigrams: readonly AstBigram[],
-  restrictedHashes: ReadonlySet<number>,
-  startIndex: number
-): number {
-  for (let index = startIndex; index < bigrams.length; index += 1) {
-    const bigram = bigrams[index];
-
-    if (restrictedHashes.has(fnv1a32(bigram.value))) {
-      return bigram.line;
-    }
-  }
-
-  return 1;
-}
-
-/**
  * Maps a similarity score to a scanner severity.
  *
  * @param similarity The Jaccard similarity score.
  * @returns A severity level.
  */
 function severityFromSimilarity(similarity: number): ViolationSeverity {
-  if (similarity >= licenseSimilarityThreshold) {
+  if (similarity >= 0.95) {
     return "critical";
   }
 
@@ -891,50 +831,6 @@ function severityFromSimilarity(similarity: number): ViolationSeverity {
   }
 
   return "medium";
-}
-
-/**
- * Finds the highest Jaccard similarity between document bigram hashes and restricted hashes.
- *
- * @param documentHashes Ordered hashes extracted from document bigrams.
- * @param restrictedHashes The restricted hash set.
- * @returns The best similarity score and the starting bigram index for that score.
- */
-function calculateBestRestrictedSimilarity(
-  documentHashes: readonly number[],
-  restrictedHashes: ReadonlySet<number>
-): { readonly score: number; readonly startIndex: number } {
-  if (documentHashes.length === 0 || restrictedHashes.size === 0) {
-    return { score: 0, startIndex: 0 };
-  }
-
-  const windowSize = restrictedHashes.size;
-
-  if (documentHashes.length <= windowSize) {
-    return {
-      score: calculateJaccardSimilarity(new Set<number>(documentHashes), restrictedHashes),
-      startIndex: 0
-    };
-  }
-
-  let bestScore = 0;
-  let bestStartIndex = 0;
-
-  for (let startIndex = 0; startIndex <= documentHashes.length - windowSize; startIndex += 1) {
-    const windowHashes = new Set<number>(documentHashes.slice(startIndex, startIndex + windowSize));
-    const score = calculateJaccardSimilarity(windowHashes, restrictedHashes);
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestStartIndex = startIndex;
-    }
-
-    if (bestScore === 1) {
-      break;
-    }
-  }
-
-  return { score: bestScore, startIndex: bestStartIndex };
 }
 
 /**

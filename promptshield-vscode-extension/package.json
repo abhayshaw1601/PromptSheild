@@ -16,7 +16,10 @@
     "onLanguage:javascript",
     "onLanguage:javascriptreact",
     "onLanguage:typescript",
-    "onLanguage:typescriptreact"
+    "onLanguage:typescriptreact",
+    "onLanguage:python",
+    "onLanguage:go",
+    "onLanguage:java"
   ],
   "main": "./dist/extension.js",
   "extensionKind": [
@@ -28,7 +31,9 @@
     "watch": "webpack --mode development --watch",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "package": "npm run clean && npm run typecheck && npm run compile"
+    "package": "npm run clean && npm run typecheck && npm run compile",
+    "compile-seed": "ts-node scripts/compile-seed.ts",
+    "scrape": "ts-node scripts/scraper.ts"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
@@ -38,6 +43,7 @@
     "rimraf": "^5.0.7",
     "ts-jest": "^29.4.11",
     "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.5.3",
     "webpack": "^5.92.1",
     "webpack-cli": "^5.1.4"

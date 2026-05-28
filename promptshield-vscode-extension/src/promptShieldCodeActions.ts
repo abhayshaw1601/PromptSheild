@@ -7,7 +7,13 @@ const COPY_REMEDIATION_PROMPT_COMMAND = "promptshield.copyCorporateRemediationPr
 const AUTO_FIX_WITH_LOCAL_AI_COMMAND = "promptshield.autoFixWithLocalAi";
 const REPLACE_SECRET_WITH_ENV_COMMAND = "promptshield.replaceSecretWithEnv";
 const OLLAMA_GENERATE_URL = "http://127.0.0.1:11434/api/generate";
-const OLLAMA_MODELS: readonly string[] = ["qwen2.5-coder:1.5b", "gemma3:1b"];
+const OLLAMA_MODELS: readonly string[] = [
+  "deepseek-r1:7b",
+  "qwen3.5:9b",
+  "gemma3:4b",
+  "qwen2.5-coder:1.5b",
+  "gemma3:1b"
+];
 const MAX_OLLAMA_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 const CORPORATE_REMEDIATION_PROMPT = `Corporate remediation instruction:
@@ -335,12 +341,16 @@ ${redactedCode}`;
 
   return `You are PromptShield running on a local edge-security gateway.
 Rewrite the flagged code block to be structurally distinct from restricted GPL source material while preserving intended behavior.
-Change control flow, helper boundaries, identifier names, and expression structure where possible.
 Return only raw replacement code.
 Do not include markdown fences.
 Do not include explanatory prose.
 Do not include phrases like "Here is", "This code", "The class", or "flagged code".
 Do not append the original flagged code after the rewrite.
+
+To be structurally distinct, you MUST perform significant AST transformations:
+1. If recursion is used, rewrite it as iterative loops (using stack/queue structures where applicable) or vice versa.
+2. Reverse branching checks (e.g., rewrite "if (r === null)" as "if (r)" with swapped else branches).
+3. Combine or split helper functions, and rearrange expression ordering.
 
 Flagged code:
 ${flaggedCode}`;
@@ -427,17 +437,32 @@ function looksLikeCodeLine(line: string): boolean {
     return true;
   }
 
-  return /^(?:import|export|class|function|async|const|let|var|if|for|while|switch|try|catch|return|throw|interface|type|enum|\}|\{|\)|\]|\w+\s*[:=()]|\/\/|\/\*)/.test(trimmed);
+  return /^(?:import|export|class|function|async|const|let|var|if|for|while|switch|try|catch|return|throw|interface|type|enum|def|func|package|public|private|protected|void|static|final|struct|\}\}?|\{?|\)?|\]?|\w+\s*[:=()]|\/\/|\/\*|#|@)/.test(trimmed);
 }
 
 async function requestOllamaCompletion(
   prompt: string,
-  models: readonly string[],
+  fallbackModels: readonly string[],
   logger: PromptShieldLogger
 ): Promise<string> {
+  let targetModels = [...fallbackModels];
+  try {
+    const discovered = await fetchLocalOllamaModels(logger);
+    if (discovered.length > 0) {
+      targetModels = sortOllamaModels(discovered);
+      logger.info("Dynamically discovered local Ollama models sorted.", {
+        models: targetModels
+      });
+    }
+  } catch (error) {
+    logger.warn("Failed to dynamically fetch local Ollama models. Using fallback list.", {
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+
   const errors: string[] = [];
 
-  for (const model of models) {
+  for (const model of targetModels) {
     try {
       logger.info("Trying Ollama model.", {
         model,
@@ -623,4 +648,69 @@ function getOllamaErrorMessage(responseBody: string): string {
   }
 
   return responseBody;
+}
+
+function fetchLocalOllamaModels(logger: PromptShieldLogger): Promise<string[]> {
+  return new Promise<string[]>((resolve, reject) => {
+    logger.info("Fetching local Ollama models dynamically from api/tags.");
+    const request = http.request(
+      "http://127.0.0.1:11434/api/tags",
+      {
+        method: "GET",
+        timeout: 5000
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("end", () => {
+          const body = Buffer.concat(chunks).toString("utf8");
+          if (response.statusCode === 200) {
+            try {
+              const parsed = JSON.parse(body) as { models?: { name: string }[] };
+              if (Array.isArray(parsed.models)) {
+                const names = parsed.models.map((m) => m.name);
+                resolve(names);
+                return;
+              }
+            } catch (err) {
+              reject(err);
+              return;
+            }
+          }
+          reject(new Error(`Ollama tags returned status ${response.statusCode}`));
+        });
+      }
+    );
+
+    request.on("timeout", () => {
+      request.destroy(new Error("Ollama tags request timed out."));
+    });
+
+    request.on("error", (err) => {
+      reject(err);
+    });
+
+    request.end();
+  });
+}
+
+function sortOllamaModels(models: string[]): string[] {
+  const score = (name: string): number => {
+    const lower = name.toLowerCase();
+    let val = 0;
+    if (lower.includes("deepseek-r1") || lower.includes("r1")) {
+      val += 100;
+    }
+    if (lower.includes("coder") || lower.includes("code")) {
+      val += 50;
+    }
+    const match = /:?(\d+(?:\.\d+)?)[bm]/i.exec(lower);
+    if (match !== null) {
+      const num = parseFloat(match[1]);
+      val += num;
+    }
+    return val;
+  };
+
+  return [...models].sort((a, b) => score(b) - score(a));
 }

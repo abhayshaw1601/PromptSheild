@@ -1,0 +1,45 @@
+name: Weekly Copyleft Compliance Sync
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Run every Sunday at midnight
+  workflow_dispatch: # Enable manual triggers
+
+jobs:
+  build-filter:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          cwd: promptshield-vscode-extension
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: promptshield-vscode-extension/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: promptshield-vscode-extension
+        run: npm ci
+
+      - name: Compile Production Compliance Filter
+        working-directory: promptshield-vscode-extension
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx ts-node scripts/productionPipeline.ts
+
+      - name: Run Test Verification Suite
+        working-directory: promptshield-vscode-extension
+        run: npm test
+
+      - name: Archive Compiled filter.bin
+        uses: actions/upload-artifact@v4
+        with:
+          name: filter.bin
+          path: promptshield-vscode-extension/resources/filter.bin
+          retention-days: 30

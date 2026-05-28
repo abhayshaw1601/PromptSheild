@@ -1,8 +1,12 @@
 import * as vscode from "vscode";
-import { scanDocument } from "./cleanScribeCore";
+import * as fs from "fs";
+import * as path from "path";
+import * as https from "https";
+import { scanDocument, initializeBloomFilter, reloadBloomFilter } from "./cleanScribeCore";
 import { PROMPTSHIELD_DIAGNOSTIC_SOURCE, PROMPTSHIELD_RESTRICTED_GPL_CODE } from "./promptShieldDiagnostics";
 import { registerPromptShieldCodeActions } from "./promptShieldCodeActions";
 import { createPromptShieldLogger } from "./promptShieldLogger";
+import type { PromptShieldLogger } from "./promptShieldLogger";
 
 export function activate(context: vscode.ExtensionContext): void {
   const outputChannel = vscode.window.createOutputChannel("PromptShield");
@@ -21,6 +25,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   registerPromptShieldCodeActions(context, logger);
   logger.info("Code actions registered.");
+
+  // Initialize the binary Bloom filter from local storage or bundled default
+  initializeBloomFilterFromStorage(context, logger);
 
   const onSaveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) => {
     const startedAt = Date.now();
@@ -112,6 +119,9 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   logger.info("Extension activation finished.");
+
+  // Schedule weekly Bloom filter sync
+  scheduleWeeklySync(context, logger);
 }
 
 export function deactivate(): void {
@@ -181,4 +191,142 @@ function expandToCodeBlockRange(document: vscode.TextDocument, lineIndex: number
     new vscode.Position(startLine, 0),
     document.lineAt(endLine).range.end
   );
+}
+
+// ---------------------------------------------------------------------------
+// Bloom Filter Initialization
+// ---------------------------------------------------------------------------
+
+const BLOOM_FILTER_FILENAME = "filter.bin";
+const SYNC_STATE_KEY = "promptshield.lastFilterSyncTimestamp";
+const SYNC_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+const FILTER_CDN_URL = "https://api.promptshield.io/rules/filter.bin";
+
+function initializeBloomFilterFromStorage(context: vscode.ExtensionContext, logger: PromptShieldLogger): void {
+  try {
+    // Check globalStorageUri for a previously synced filter
+    const globalStoragePath = context.globalStorageUri.fsPath;
+    const syncedFilterPath = path.join(globalStoragePath, BLOOM_FILTER_FILENAME);
+
+    if (fs.existsSync(syncedFilterPath)) {
+      initializeBloomFilter(syncedFilterPath);
+      logger.info("Bloom filter loaded from synced storage.", { path: syncedFilterPath });
+      return;
+    }
+
+    // Fallback: load the bundled default filter from the extension directory
+    const bundledFilterPath = path.join(context.extensionPath, "resources", BLOOM_FILTER_FILENAME);
+
+    if (fs.existsSync(bundledFilterPath)) {
+      initializeBloomFilter(bundledFilterPath);
+      logger.info("Bloom filter loaded from bundled resources.", { path: bundledFilterPath });
+      return;
+    }
+
+    logger.warn("No Bloom filter found. Structural license scanning will use fallback mode.");
+  } catch (error) {
+    logger.error("Failed to initialize Bloom filter.", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Weekly Background Sync
+// ---------------------------------------------------------------------------
+
+function scheduleWeeklySync(context: vscode.ExtensionContext, logger: PromptShieldLogger): void {
+  const lastSync = context.globalState.get<number>(SYNC_STATE_KEY, 0);
+  const now = Date.now();
+  const elapsed = now - lastSync;
+
+  if (elapsed < SYNC_INTERVAL_MS) {
+    const remainingDays = ((SYNC_INTERVAL_MS - elapsed) / (24 * 60 * 60 * 1000)).toFixed(1);
+    logger.info(`Bloom filter sync not due yet. Next sync in ${remainingDays} days.`);
+    return;
+  }
+
+  logger.info("Weekly Bloom filter sync triggered.");
+  downloadFilterUpdate(context, logger);
+}
+
+function downloadFilterUpdate(context: vscode.ExtensionContext, logger: PromptShieldLogger): void {
+  try {
+    const parsedUrl = new URL(FILTER_CDN_URL);
+
+    const options: https.RequestOptions = {
+      hostname: parsedUrl.hostname,
+      path: parsedUrl.pathname,
+      method: "GET",
+      headers: {
+        "User-Agent": "PromptShield-VSCode/1.0"
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      if (res.statusCode !== 200) {
+        logger.warn(`Bloom filter sync: HTTP ${res.statusCode ?? "unknown"} from CDN.`);
+        return;
+      }
+
+      const chunks: Buffer[] = [];
+      let totalBytes = 0;
+      const maxBytes = 5 * 1024 * 1024;
+
+      res.on("data", (chunk: Buffer) => {
+        totalBytes += chunk.length;
+        if (totalBytes > maxBytes) {
+          res.destroy();
+          logger.warn("Bloom filter sync: Response exceeded 5 MB limit. Aborting.");
+          return;
+        }
+        chunks.push(chunk);
+      });
+
+      res.on("end", () => {
+        try {
+          const data = Buffer.concat(chunks);
+
+          if (data.length < 1024) {
+            logger.warn("Bloom filter sync: Downloaded file is too small. Skipping.");
+            return;
+          }
+
+          const globalStoragePath = context.globalStorageUri.fsPath;
+          if (!fs.existsSync(globalStoragePath)) {
+            fs.mkdirSync(globalStoragePath, { recursive: true });
+          }
+
+          const filterPath = path.join(globalStoragePath, BLOOM_FILTER_FILENAME);
+          fs.writeFileSync(filterPath, data);
+
+          reloadBloomFilter(filterPath);
+          context.globalState.update(SYNC_STATE_KEY, Date.now());
+
+          logger.info("Bloom filter synced and hot-reloaded.", {
+            path: filterPath,
+            sizeBytes: data.length
+          });
+        } catch (writeError) {
+          logger.error("Bloom filter sync: Failed to save updated filter.", writeError);
+        }
+      });
+
+      res.on("error", (streamError) => {
+        logger.error("Bloom filter sync: Stream error.", streamError);
+      });
+    });
+
+    req.on("error", (reqError) => {
+      logger.warn(`Bloom filter sync: Network error (CDN may be unreachable). Extension continues offline.`);
+      logger.error("Bloom filter sync: Request error details.", reqError);
+    });
+
+    req.setTimeout(30000, () => {
+      req.destroy();
+      logger.warn("Bloom filter sync: Request timed out after 30 seconds.");
+    });
+
+    req.end();
+  } catch (error) {
+    logger.error("Bloom filter sync: Unexpected error.", error);
+  }
 }
