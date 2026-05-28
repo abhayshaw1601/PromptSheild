@@ -16,15 +16,11 @@
   }
 
   function formatToastMessage(response) {
-    return (
-      '\uD83D\uDEE1\uFE0F PromptShield: ' +
-      response.fieldCount +
-      ' field(s) masked'
-    );
+    return '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked';
   }
 
   function formatSendingToastMessage(response) {
-    return '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked · sending...';
+    return '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked \u00B7 sending...';
   }
 
   function clearDebounceTimer() {
