@@ -70,13 +70,16 @@
 
     await PromptShield.injectSanitizedText(inputEl, response.text);
     PromptShield.lastSanitizedText = response.text.trim();
+
     PromptShield.showToast(
-      options.autoSubmit ? formatSendingToastMessage(response) : formatToastMessage(response),
+      '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked \u00B7 sending...',
       response.ollamaUsed ? 'success' : 'warning'
     );
 
     if (options.autoSubmit) {
-      await PromptShield.autoSubmit(platform);
+      // Ask background to execute submit inside the page's MAIN world
+      // (content scripts can't fire trusted events; MAIN world can call Angular directly)
+      await sendChromeMessage({ type: 'TRIGGER_SUBMIT' });
     }
 
     return response;
@@ -86,7 +89,8 @@
     if (PromptShield.isSanitizing) return;
     clearDebounceTimer();
     debounceTimer = setTimeout(() => {
-      runPipeline(inputEl, platform);
+      // autoSubmit: true — after 800ms pause, mask AND auto-send
+      runPipeline(inputEl, platform, { autoSubmit: true });
     }, delayMs);
   }
 
