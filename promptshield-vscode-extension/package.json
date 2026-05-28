@@ -1,0 +1,46 @@
+{
+  "name": "promptshield-vscode-extension",
+  "displayName": "PromptShield",
+  "description": "Local edge-security gateway for code compliance in VS Code.",
+  "version": "0.1.0",
+  "publisher": "promptshield",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:typescript"
+  ],
+  "main": "./dist/extension.js",
+  "extensionKind": [
+    "workspace"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "compile": "webpack --mode production",
+    "watch": "webpack --mode development --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --runInBand",
+    "package": "npm run clean && npm run typecheck && npm run compile"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.14.10",
+    "@types/vscode": "^1.90.0",
+    "jest": "^30.4.2",
+    "rimraf": "^5.0.7",
+    "ts-jest": "^29.4.11",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.5.3",
+    "webpack": "^5.92.1",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "acorn": "^8.16.0"
+  }
+}
