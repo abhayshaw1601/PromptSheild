@@ -73,7 +73,7 @@
 
     PromptShield.showToast(
       '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked \u00B7 sending...',
-      response.ollamaUsed ? 'success' : 'warning'
+      'success'
     );
 
     if (options.autoSubmit) {
