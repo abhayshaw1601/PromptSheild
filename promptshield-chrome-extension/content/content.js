@@ -37,6 +37,7 @@
       async (event) => {
         if (event.key !== 'Enter' || event.shiftKey) return;
         if (PromptShield.isSanitizing) return;
+        if (PromptShield.isSubmitting) return;   // auto-submit in progress — don't re-intercept
 
         const inputEl = PromptShield.getInputElement(platform);
         if (!shouldHandleSensitiveSubmit(inputEl)) return;
