@@ -6,80 +6,73 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="app">
 
-    <!-- ── Header ── -->
-    <header class="header">
-      <div class="header-left">
-        <div class="logo-ring">
-          <!-- Yellow Shield Icon (Outlined) -->
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff8c00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
-        </div>
-        <div>
-          <div class="app-name">
-            PromptShield
-            <!-- Blue Verified Checkmark -->
-            <svg class="verified-icon" width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#00d4ff"/>
-            </svg>
-          </div>
-          <div class="app-sub">AI Data Loss Prevention</div>
-        </div>
-      </div>
-      <span class="version">v1.0.0</span>
-    </header>
+<!-- ══════════════════════════════════════════════════════════
+     SCREEN 1 — OVERVIEW
+══════════════════════════════════════════════════════════ -->
+<div class="screen active" id="screen-overview">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="app-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 5v6c0 5.25 3.5 10.15 8 11.35C16.5 21.15 20 16.25 20 11V5l-8-3z" fill="rgba(59,130,246,0.25)" stroke="#3b82f6" stroke-width="1.8"/><polyline points="9,12 11,14 15,10" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div><div class="app-title">PromptShield</div><div class="app-sub">AI Data Loss Prevention</div></div>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" id="btn-settings" title="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="icon-btn" title="More">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+      </button>
+    </div>
+  </div>
 
-    <!-- ── Gateway Status Card ── -->
-    <div class="status-bar">
-      <div class="status-left">
-        <span class="status-dot offline" id="status-dot"></span>
-        <div>
-          <div class="status-label">GATEWAY</div>
-          <div class="status-value offline" id="status-text">GATEWAY OFFLINE</div>
-        </div>
+  <div class="scroll-area">
+    <!-- Status card -->
+    <div class="status-card" id="status-card">
+      <div class="status-shield" id="status-shield">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 5v6c0 5.25 3.5 10.15 8 11.35C16.5 21.15 20 16.25 20 11V5l-8-3z" fill="rgba(34,197,94,0.2)" stroke="#22c55e" stroke-width="1.8"/><polyline points="9,12 11,14 15,10" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="shield-toggle" checked>
-        <span class="track"><span class="thumb"></span></span>
-      </label>
+      <div class="status-body">
+        <div class="status-title" id="status-title">Protected</div>
+        <div class="status-sub"><span class="pulse-dot" id="pulse-dot"></span><span id="status-sub-text">Monitoring Active</span></div>
+        <div class="status-desc" id="status-desc">All prompts are protected and sensitive data is blocked.</div>
+      </div>
+    </div>
+    <div class="status-footer">
+      <span class="status-time"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg> <span id="last-checked">Just now</span></span>
+      <button class="link-btn" id="btn-view-details">View details <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9,18 15,12 9,6"/></svg></button>
     </div>
 
-    <!-- ── Stats Grid ── -->
-    <div class="section-label">PROTECTION SUMMARY</div>
-    <div class="stats-grid">
-      <!-- Row 1: Large Card -->
-      <div class="stat-card accent">
-        <div class="stat-num" id="stat-total">837</div>
-        <div class="stat-name">Total Redacted</div>
+    <!-- Items protected -->
+    <div class="metric-card">
+      <div class="metric-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><rect x="18" y="3" width="4" height="18" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="2" y="13" width="4" height="8" rx="1"/></svg></div>
+      <div class="metric-body">
+        <div class="metric-num" id="metric-total">0</div>
+        <div class="metric-label">Items Protected</div>
       </div>
-      <!-- Row 2: 3 Stat Tiles -->
-      <div class="stat-card c-cyan row-3">
-        <div class="stat-num" id="stat-keys">83</div>
-        <div class="stat-name">API Keys</div>
-      </div>
-      <div class="stat-card c-rose row-3">
-        <div class="stat-num" id="stat-phi">77</div>
-        <div class="stat-name">PHI / Health</div>
-      </div>
-      <div class="stat-card c-emerald row-3">
-        <div class="stat-num" id="stat-financial">82</div>
+      <div class="metric-badge" id="metric-badge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18,15 12,9 6,15"/></svg> <span id="metric-pct">0%</span></div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="section-header">
+      <span class="section-title">Recent Activity</span>
+      <button class="l
+      <div class="stat-card c-emerald">
+        <div class="stat-num" id="stat-financial">0</div>
         <div class="stat-name">Financial</div>
       </div>
-      <!-- Row 3: 2 Stat Tiles -->
-      <div class="stat-card c-violet row-2">
-        <div class="stat-num" id="stat-pii">122</div>
+      <div class="stat-card c-violet">
+        <div class="stat-num" id="stat-pii">0</div>
         <div class="stat-name">PII</div>
       </div>
-      <div class="stat-card c-amber row-2">
-        <div class="stat-num" id="stat-creds">20</div>
+      <div class="stat-card c-amber">
+        <div class="stat-num" id="stat-creds">0</div>
         <div class="stat-name">Credentials</div>
       </div>
     </div>
 
     <!-- ── Recent Activity ── -->
-    <div class="section-label" style="margin-top:16px">RECENT ACTIVITY</div>
+    <div class="section-label" style="margin-top:14px">RECENT ACTIVITY</div>
     <div class="feed" id="feed">
       <div class="feed-empty">No activity yet</div>
     </div>
@@ -87,7 +80,7 @@
     <!-- ── Footer ── -->
     <div class="footer">
       <button class="btn-reset" id="btn-reset">Reset Statistics</button>
-      <div class="footer-note" id="footer-note">Backend offline — local masking active</div>
+      <div class="footer-note" id="footer-note">Local firewall active on port 5000</div>
     </div>
 
   </div>

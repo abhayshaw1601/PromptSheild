@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 
 const fadeUp = {
   initial: { opacity: 0, y: 28 },
@@ -153,9 +152,7 @@ export default function Home() {
               Case studies
             </a>
           </div>
-          <Link href="/demo">
-            <Button className="h-10 px-5 bg-[#F5C518] hover:bg-[#F5C518]/90 text-black border-none font-bold">Try Simulator</Button>
-          </Link>
+          <Button className="h-10 px-5">See it live</Button>
         </div>
       </nav>
 
@@ -172,10 +169,8 @@ export default function Home() {
             leaking what matters.
           </p>
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-            <Link href="/demo">
-              <Button className="bg-[#F5C518] hover:bg-[#F5C518]/90 text-[#0d0d0d] font-bold px-6 py-2.5">Try Product Simulator</Button>
-            </Link>
-            <Button variant="outline" className="border-white/20 hover:bg-white/5 text-white">Read the case study</Button>
+            <Button>See it live</Button>
+            <Button variant="outline">Read the case study</Button>
           </div>
         </motion.div>
         <motion.div {...fadeUp} transition={{ ...fadeUp.transition, delay: 0.1 }}>

@@ -80,71 +80,32 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Load stats from audit log ───────────────────────────────
   function loadStats() {
     sendMsg({ type: 'GET_LOGS' }).then(logs => {
-      let isCleared = false;
-      
-      // Let's check if the stats were cleared by checking storage
-      chrome.storage.local.get(['statsCleared'], r => {
-        isCleared = !!r.statsCleared;
+      if (!Array.isArray(logs)) logs = [];
 
-        if (!Array.isArray(logs)) logs = [];
+      let total = 0, keys = 0, phi = 0, financial = 0, pii = 0, creds = 0;
 
-        // Baseline default mock data if not cleared
-        let total = isCleared ? 0 : 837;
-        let keys = isCleared ? 0 : 83;
-        let phi = isCleared ? 0 : 77;
-        let financial = isCleared ? 0 : 82;
-        let pii = isCleared ? 0 : 122;
-        let creds = isCleared ? 0 : 20;
+      logs.forEach(log => {
+        if (!log.wasRedacted) return;
+        total += log.fieldCount || 0;
 
-        // If there are real logs, we add them to the statistics
-        logs.forEach(log => {
-          if (!log.wasRedacted) return;
-          total += log.fieldCount || 0;
-
-          (log.detectedTypes || []).forEach(t => {
-            if (CRED_TYPES.has(t))          creds++;
-            else if (API_TYPES.has(t))      keys++;
-            else if (PHI_TYPES.has(t))      phi++;
-            else if (FINANCIAL_TYPES.has(t)) financial++;
-            else if (PII_TYPES.has(t))      pii++;
-          });
+        // Each type counted in exactly ONE bucket — no double-counting
+        (log.detectedTypes || []).forEach(t => {
+          if (CRED_TYPES.has(t))          creds++;
+          else if (API_TYPES.has(t))      keys++;
+          else if (PHI_TYPES.has(t))      phi++;
+          else if (FINANCIAL_TYPES.has(t)) financial++;
+          else if (PII_TYPES.has(t))      pii++;
         });
-
-        els.total.textContent     = total;
-        els.keys.textContent      = keys;
-        els.phi.textContent       = phi;
-        els.financial.textContent = financial;
-        els.pii.textContent       = pii;
-        els.creds.textContent     = creds;
-
-        // Render feed
-        if (logs.length === 0 && !isCleared) {
-          // Render default mock activity feed
-          const mockFeedLogs = [
-            {
-              platform: 'Gemini',
-              wasRedacted: true,
-              timestamp: new Date(Date.now() - 3 * 60000).toISOString(),
-              detectedTypes: ['DB_CONNECTION', 'API_KEY', 'EMAIL', 'SSN']
-            },
-            {
-              platform: 'ChatGPT',
-              wasRedacted: true,
-              timestamp: new Date(Date.now() - 3 * 60000).toISOString(),
-              detectedTypes: ['DB_CONNECTION', 'API_KEY', 'EMAIL', 'SSN']
-            },
-            {
-              platform: 'Claude',
-              wasRedacted: true,
-              timestamp: new Date(Date.now() - 4 * 60000).toISOString(),
-              detectedTypes: ['EMAIL']
-            }
-          ];
-          renderFeed(mockFeedLogs);
-        } else {
-          renderFeed(logs.slice(-8).reverse());
-        }
       });
+
+      els.total.textContent     = total;
+      els.keys.textContent      = keys;
+      els.phi.textContent       = phi;
+      els.financial.textContent = financial;
+      els.pii.textContent       = pii;
+      els.creds.textContent     = creds;
+
+      renderFeed(logs.slice(-8).reverse());
     });
   }
 
@@ -158,15 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     feedEl.innerHTML = active.map(log => {
       const tags = (log.detectedTypes || [])
         .slice(0, 4)
-        .map(t => {
-          let cat = '';
-          if (API_TYPES.has(t)) cat = 'api';
-          else if (PHI_TYPES.has(t)) cat = 'phi';
-          else if (FINANCIAL_TYPES.has(t)) cat = 'fin';
-          else if (PII_TYPES.has(t)) cat = 'pii';
-          else if (CRED_TYPES.has(t)) cat = 'cred';
-          return `<span class="feed-tag ${cat}">${friendlyType(t)}</span>`;
-        })
+        .map(t => `<span class="feed-tag">${friendlyType(t)}</span>`)
         .join('');
       // Sanitize platform string to prevent XSS
       const platform = (log.platform || 'unknown').replace(/[<>&"]/g, '');
@@ -194,9 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Reset ───────────────────────────────────────────────────
   document.getElementById('btn-reset').addEventListener('click', () => {
     if (!confirm('Clear all shielding history?')) return;
-    chrome.storage.local.set({ statsCleared: true }, () => {
-      sendMsg({ type: 'CLEAR_LOGS' }).then(() => loadStats());
-    });
+    sendMsg({ type: 'CLEAR_LOGS' }).then(() => loadStats());
   });
 
   // ── Init ────────────────────────────────────────────────────
