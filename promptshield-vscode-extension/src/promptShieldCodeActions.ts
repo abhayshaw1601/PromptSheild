@@ -1,4 +1,6 @@
 import * as http from "http";
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
 import { PROMPTSHIELD_DIAGNOSTIC_SOURCE, PROMPTSHIELD_RESTRICTED_GPL_CODE } from "./promptShieldDiagnostics";
 import type { PromptShieldLogger } from "./promptShieldLogger";
@@ -200,6 +202,20 @@ async function replaceSecretWithEnv(
     const flaggedCode = document.getText(range);
     const replacement = createSecretEnvReplacement(flaggedCode, diagnosticCode);
 
+    const secretValue = extractSecretValue(flaggedCode);
+    if (secretValue) {
+      const envName = envNameForDiagnosticCode(diagnosticCode);
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (workspaceFolders && workspaceFolders.length > 0) {
+        const rootPath = workspaceFolders[0].uri.fsPath;
+        const envPath = path.join(rootPath, ".env");
+        const envExamplePath = path.join(rootPath, ".env.example");
+
+        await appendOrUpdateEnvFile(envPath, envName, secretValue, logger);
+        await appendOrUpdateEnvFile(envExamplePath, envName, `your_${envName.toLowerCase()}_here`, logger);
+      }
+    }
+
     const edit = new vscode.WorkspaceEdit();
     edit.replace(uri, range, replacement);
     const didApply = await vscode.workspace.applyEdit(edit);
@@ -284,6 +300,22 @@ async function autoFixWithLocalAi(uri: vscode.Uri, range: vscode.Range, logger: 
       flaggedCharacterCount: flaggedCode.length,
       flaggedLineCount: flaggedCode.split(/\r?\n/).length
     });
+
+    if (isSecretDiagnosticCode(diagnosticCode)) {
+      const secretValue = extractSecretValue(flaggedCode);
+      if (secretValue) {
+        const envName = envNameForDiagnosticCode(diagnosticCode);
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+          const rootPath = workspaceFolders[0].uri.fsPath;
+          const envPath = path.join(rootPath, ".env");
+          const envExamplePath = path.join(rootPath, ".env.example");
+
+          await appendOrUpdateEnvFile(envPath, envName, secretValue, logger);
+          await appendOrUpdateEnvFile(envExamplePath, envName, `your_${envName.toLowerCase()}_here`, logger);
+        }
+      }
+    }
 
     const prompt = buildRemediationPrompt(flaggedCode, diagnosticCode);
     const generatedCode = await requestOllamaCompletion(prompt, OLLAMA_MODELS, logger);
@@ -713,4 +745,37 @@ function sortOllamaModels(models: string[]): string[] {
   };
 
   return [...models].sort((a, b) => score(b) - score(a));
+}
+
+export function extractSecretValue(flaggedCode: string): string | undefined {
+  const match = /["'`]([^"'`\s]{8,})["'`]/.exec(flaggedCode);
+  return match ? match[1] : undefined;
+}
+
+async function appendOrUpdateEnvFile(
+  filePath: string,
+  envName: string,
+  value: string,
+  logger: PromptShieldLogger
+): Promise<void> {
+  try {
+    let content = "";
+    if (fs.existsSync(filePath)) {
+      content = fs.readFileSync(filePath, "utf8");
+    }
+
+    const lineRegex = new RegExp(`^(\\s*${envName}\\s*=).*$`, "m");
+    if (lineRegex.test(content)) {
+      content = content.replace(lineRegex, `$1"${value}"`);
+      logger.info(`Updated existing key in ${path.basename(filePath)}`, { envName });
+    } else {
+      const separator = content.endsWith("\n") || content.length === 0 ? "" : "\n";
+      content = `${content}${separator}${envName}="${value}"\n`;
+      logger.info(`Appended new key to ${path.basename(filePath)}`, { envName });
+    }
+
+    fs.writeFileSync(filePath, content, "utf8");
+  } catch (error) {
+    logger.error(`Failed to update env file: ${filePath}`, error);
+  }
 }
