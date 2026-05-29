@@ -13,7 +13,10 @@
           '[data-testid="send-button"]',
           'button[aria-label="Submit message"]',
           'button[data-mat-icon-name="send"]',
-          '.send-button'
+          '.send-button',
+          // Claude
+          'button[aria-label="Send Message"]',
+          'button[data-testid="send-button"]'
         ].join(', '))
     );
   }
@@ -70,7 +73,10 @@
     );
   }
 
-  const platform = window.location.hostname.includes('gemini') ? 'gemini' : 'chatgpt';
+  const hostname = window.location.hostname;
+  const platform = hostname.includes('gemini') ? 'gemini'
+                 : hostname.includes('claude')  ? 'claude'
+                 : 'chatgpt';
   PromptShield.showPageBadge();
   PromptShield.startObserver(platform);
   attachKeydownSafetyNet(platform);

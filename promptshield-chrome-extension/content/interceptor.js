@@ -15,14 +15,6 @@
     });
   }
 
-  function formatToastMessage(response) {
-    return '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked';
-  }
-
-  function formatSendingToastMessage(response) {
-    return '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked \u00B7 sending...';
-  }
-
   function clearDebounceTimer() {
     clearTimeout(debounceTimer);
     debounceTimer = null;
@@ -72,14 +64,20 @@
     PromptShield.lastSanitizedText = response.text.trim();
 
     PromptShield.showToast(
-      '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked \u00B7 sending...',
+      options.autoSubmit
+        ? '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked \u00B7 sending...'
+        : '\uD83D\uDEE1\uFE0F PromptShield: ' + response.fieldCount + ' field(s) masked',
       'success'
     );
 
     if (options.autoSubmit) {
-      // Ask background to execute submit inside the page's MAIN world
-      // (content scripts can't fire trusted events; MAIN world can call Angular directly)
-      await sendChromeMessage({ type: 'TRIGGER_SUBMIT' });
+      if (platform === 'gemini') {
+        // Gemini needs MAIN world execution to bypass Angular's isTrusted check
+        await sendChromeMessage({ type: 'TRIGGER_SUBMIT' });
+      } else {
+        // Claude / ChatGPT use React with native disabled — direct autoSubmit works
+        await PromptShield.autoSubmit(platform);
+      }
     }
 
     return response;

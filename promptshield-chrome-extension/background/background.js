@@ -53,7 +53,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       };
     }
 
-  if (message.type === 'TRIGGER_SUBMIT') {
+    if (message.type === 'TRIGGER_SUBMIT') {
       // Run inside the page's MAIN world so Angular's own methods are accessible.
       // isTrusted is irrelevant here — we call Angular's handler directly.
       try {

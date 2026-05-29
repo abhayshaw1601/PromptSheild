@@ -32,13 +32,13 @@
     inputEl.focus();
     moveCursorToEnd(inputEl);
 
-    // Select all and replace in one execCommand — keeps Quill's model in sync
     document.execCommand('selectAll', false, null);
     await wait(30);
     document.execCommand('insertText', false, sanitizedText);
     await wait(30);
 
-    // Extra InputEvent so Angular/Quill change detection definitely fires
+    // Fire InputEvent so the framework (React/Quill/ProseMirror) updates its model.
+    // isSanitizing stays true here so the interceptor's input listener ignores this event.
     inputEl.dispatchEvent(new InputEvent('input', {
       inputType: 'insertText',
       data: sanitizedText,
@@ -48,10 +48,9 @@
     }));
 
     moveCursorToEnd(inputEl);
-
-    // Wait for Quill + Angular to process and enable the send button
     await wait(150);
 
+    // Only release the lock AFTER all events have been dispatched
     PromptShield.isSanitizing = false;
   }
 
@@ -104,7 +103,9 @@
   // Watch aria-disabled on the send button via MutationObserver.
   // Click the instant it becomes ready. Fallback to Enter after 3s.
   async function autoSubmitGemini() {
-    const inputEl = document.querySelector(PromptShield.GEMINI_INPUT_SELECTOR);
+    const inputEl =
+      document.querySelector(PromptShield.GEMINI_INPUT_SELECTOR) ||
+      document.querySelector(PromptShield.GEMINI_INPUT_SELECTOR_FALLBACK);
     console.log('[PS] autoSubmitGemini — inputEl:', !!inputEl);
 
     // Check immediately first
@@ -181,12 +182,47 @@
     if (platform === 'gemini') {
       return autoSubmitGemini();
     }
-    // ChatGPT — React, native disabled attribute
-    await wait(200);
-    const btn =
-      document.querySelector('button[aria-label="Send message"]') ||
-      document.querySelector('button[data-testid="send-button"]');
-    if (btn && !btn.disabled) btn.click();
+
+    // Claude & ChatGPT — React, native disabled attribute
+    // Poll up to 1s for the button to become enabled after injection
+    function findReactSendBtn() {
+      return (
+        document.querySelector('button[data-testid="send-button"]') ||
+        document.querySelector('button[aria-label="Send Message"]') ||
+        document.querySelector('button[aria-label="Send message"]') ||
+        document.querySelector('button[aria-label="Send"]')
+      );
+    }
+
+    // Check immediately
+    let btn = findReactSendBtn();
+    if (btn && !btn.disabled) {
+      btn.click();
+      return;
+    }
+
+    // Poll up to 1s (10 × 100ms)
+    for (let i = 0; i < 10; i++) {
+      await wait(100);
+      btn = findReactSendBtn();
+      if (btn && !btn.disabled) {
+        btn.click();
+        return;
+      }
+    }
+
+    // Fallback: Enter keydown on the input element
+    const inputEl = platform === 'claude'
+      ? (document.querySelector('div[contenteditable="true"].ProseMirror') ||
+         document.querySelector('div[contenteditable="true"][data-placeholder]'))
+      : document.querySelector('#prompt-textarea');
+
+    if (inputEl) {
+      inputEl.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
+        bubbles: true, cancelable: true, composed: true
+      }));
+    }
   }
 
   PromptShield.injectSanitizedText = injectSanitizedText;

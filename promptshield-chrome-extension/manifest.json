@@ -24,6 +24,7 @@
     "https://gemini.google.com/*",
     "https://chatgpt.com/*",
     "https://copilot.microsoft.com/*",
+    "https://claude.ai/*",
     "http://localhost/*"
   ],
   "background": {
@@ -35,7 +36,8 @@
       "matches": [
         "https://gemini.google.com/*",
         "https://chatgpt.com/*",
-        "https://copilot.microsoft.com/*"
+        "https://copilot.microsoft.com/*",
+        "https://claude.ai/*"
       ]
     }
   ],
@@ -44,10 +46,12 @@
       "matches": [
         "https://gemini.google.com/*",
         "https://chatgpt.com/*",
-        "https://copilot.microsoft.com/*"
+        "https://copilot.microsoft.com/*",
+        "https://claude.ai/*"
       ],
       "js": [
         "utils/constants.js",
+        "utils/masker.js",
         "parser/regexPatterns.js",
         "parser/nerChecker.js",
         "parser/astParser.js",
