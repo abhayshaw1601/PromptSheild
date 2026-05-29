@@ -63,8 +63,10 @@ flowchart TD
 
     IDEUser["Developer in VS Code"] --> VSCodeExt["PromptShield VS Code Extension"]
     VSCodeExt --> CoreEngine["cleanScribeCore.ts"]
-    CoreEngine --> Problems["VS Code Diagnostics Collection"]
-    Problems --> CodeActions["PromptShield Quick Fixes"]
+    CoreEngine --> Diagnostics["VS Code Diagnostics Collection"]
+    CoreEngine --> Sidebar["SecureCoder Sidebar Webview Panel"]
+    Diagnostics --> CodeActions["PromptShield Quick Fixes"]
+    Sidebar --> CodeActions
     CodeActions --> Clipboard["Corporate Remediation Prompt"]
     CodeActions --> Ollama["Local Ollama"]
     Ollama --> WorkspaceEdit["WorkspaceEdit Replacement"]
@@ -105,6 +107,7 @@ sequenceDiagram
     participant VSCode as VS Code
     participant Extension as extension.ts
     participant Core as cleanScribeCore.ts
+    participant Sidebar as Sidebar Webview
     participant Problems as DiagnosticCollection
     participant Actions as CodeActionProvider
     participant Ollama as Local Ollama
@@ -114,21 +117,25 @@ sequenceDiagram
     Extension->>Problems: Clear previous diagnostics for URI
     Extension->>Extension: StatusBarItem = Scanning...
     Extension->>Core: scanDocument(document.getText())
-    Core->>Core: Acorn parse
-    Core->>Core: Structural token and bigram extraction
-    Core->>Core: FNV-1a hash generation
-    Core->>Core: Rolling Jaccard comparison
+    Core->>Core: Acorn parse, AST token trigrams, FNV-1a hashes
+    Core->>Core: Trigram similarity comparison against Bloom filter
     Core-->>Extension: Scan violations
     alt No violations
         Extension->>Extension: StatusBarItem = Safe
+        Extension->>Sidebar: updateViolations(uri, [])
     else Violations found
         Extension->>Problems: Set PromptShield diagnostics
         Extension->>Extension: StatusBarItem = Issues Detected
-        Developer->>Actions: Opens Quick Fix
-        Actions-->>Developer: Copy Corporate Remediation Prompt
-        Actions->>Ollama: POST /api/generate
-        Ollama-->>Actions: Structurally distinct rewrite
-        Actions->>VSCode: WorkspaceEdit replaces flagged range
+        Extension->>Sidebar: updateViolations(uri, violations)
+        Developer->>Sidebar: Interacts with sidebar dashboard
+        alt Click Line Badge
+            Sidebar->>VSCode: jumpToLine (Editor centers on coordinate)
+        else Click Auto-Fix / Fix All
+            Sidebar->>Extension: fixViolation
+            Extension->>Ollama: POST /api/generate
+            Ollama-->>Extension: Structurally distinct rewrite
+            Extension->>VSCode: WorkspaceEdit replaces flagged range
+        end
     end
 ```
 
@@ -140,10 +147,11 @@ Important files:
 
 | File | Purpose |
 | --- | --- |
-| `src/extension.ts` | VS Code activation, save listener, status bar, diagnostics, and Quick Fix registration. |
+| `src/extension.ts` | VS Code activation, save listener, status bar, diagnostics, and Webview sidebar registration. |
 | `src/cleanScribeCore.ts` | Pure scanner module. Does not import `vscode`. |
 | `src/promptShieldDiagnostics.ts` | Diagnostic source and code constants. |
 | `src/promptShieldCodeActions.ts` | CodeActionProvider and local AI remediation command. |
+| `src/promptShieldWebviewProvider.ts` | WebviewViewProvider for the custom interactive "SecureCoder" dashboard sidebar panel. |
 | `src/promptShieldLogger.ts` | Shared timestamped logger for the `PromptShield` Output panel. |
 | `test/cleanScribeCore.test.ts` | Jest tests for core scanner behavior. |
 | `webpack.config.js` | Bundles the extension entry into `dist/extension.js`. |
@@ -153,7 +161,8 @@ Activation events:
 ```json
 [
   "onLanguage:javascript",
-  "onLanguage:typescript"
+  "onLanguage:typescript",
+  "onView:promptshield.sidebarView"
 ]
 ```
 

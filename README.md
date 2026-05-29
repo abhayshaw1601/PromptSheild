@@ -65,9 +65,11 @@ flowchart TD
     IDE["Developer in VS Code"] --> VSCodeExt["PromptShield VS Code Extension"]
     VSCodeExt --> CoreEngine["cleanScribeCore.ts"]
     CoreEngine --> Diagnostics["VS Code Diagnostics and Problems Panel"]
+    CoreEngine --> Sidebar["SecureCoder Sidebar Webview Panel"]
     Diagnostics --> CodeActions["Quick Fix CodeActions"]
+    Sidebar --> CodeActions
     CodeActions --> Clipboard["Corporate Remediation Prompt"]
-    CodeActions --> Ollama["Local Ollama: qwen2.5-coder:1.5b or gemma:3"]
+    CodeActions --> Ollama["Local Ollama: deepseek-r1:7b or qwen2.5-coder:1.5b"]
     Ollama --> WorkspaceEdit["WorkspaceEdit Replacement"]
 
     Dashboard["Next.js Dashboard"] --> Gateway
@@ -106,6 +108,7 @@ sequenceDiagram
     participant VSCode as VS Code
     participant Extension as extension.ts
     participant Core as cleanScribeCore.ts
+    participant Sidebar as Sidebar Webview
     participant Problems as Diagnostics Collection
     participant Actions as CodeActionProvider
     participant Ollama as Local Ollama
@@ -115,19 +118,25 @@ sequenceDiagram
     Extension->>Problems: Clear previous diagnostics for URI
     Extension->>Extension: StatusBarItem = Scanning...
     Extension->>Core: scanDocument(document.getText())
-    Core->>Core: Acorn parse, AST token bigrams, FNV-1a hashes
-    Core->>Core: Jaccard comparison against restricted fingerprints
+    Core->>Core: Acorn parse, AST token trigrams, FNV-1a hashes
+    Core->>Core: Trigram similarity comparison against Bloom filter
     Core-->>Extension: Violations
     alt No violations
         Extension->>Extension: StatusBarItem = Safe
+        Extension->>Sidebar: updateViolations(uri, [])
     else Violations found
         Extension->>Problems: Set PromptShield diagnostics
         Extension->>Extension: StatusBarItem = Issues Detected
-        Developer->>Actions: Opens Quick Fix
-        Actions-->>Developer: Copy Corporate Remediation Prompt
-        Actions->>Ollama: POST /api/generate
-        Ollama-->>Actions: Structurally distinct rewrite
-        Actions->>VSCode: WorkspaceEdit replaces flagged range
+        Extension->>Sidebar: updateViolations(uri, violations)
+        Developer->>Sidebar: Interacts with sidebar dashboard
+        alt Click Line Badge
+            Sidebar->>VSCode: jumpToLine (Editor centers on coordinate)
+        else Click Auto-Fix / Fix All
+            Sidebar->>Extension: fixViolation
+            Extension->>Ollama: POST /api/generate
+            Ollama-->>Extension: Structurally distinct rewrite
+            Extension->>VSCode: WorkspaceEdit replaces flagged range
+        end
     end
 ```
 
@@ -148,10 +157,12 @@ The VS Code extension is intentionally split into a UI orchestration layer and a
 
 ```text
 promptshield-vscode-extension/src/
-|-- extension.ts                  Registers save listener, status bar, diagnostics, quick fixes
+|-- extension.ts                  Registers save listener, status bar, diagnostics, quick fixes, webview
 |-- cleanScribeCore.ts            Pure scanner; no vscode import
 |-- promptShieldDiagnostics.ts    Diagnostic source and code constants
-`-- promptShieldCodeActions.ts    Quick Fix actions and local Ollama integration
+|-- promptShieldCodeActions.ts    Quick Fix actions and local Ollama integration
+|-- promptShieldWebviewProvider.ts Webview view provider for 'SecureCoder' dashboard
+`-- localBloomFilter.ts           Binary Bloom filter rules loading and matching
 ```
 
 Important properties:
@@ -160,7 +171,7 @@ Important properties:
 - Diagnostics are stored in a single collection named `PromptShield`.
 - Previous diagnostics are cleared before every save-time scan.
 - Local remediation uses Node's native `http` module.
-- Ollama requests target `qwen2.5-coder:1.5b` first and fall back to `gemma:3`.
+- Ollama requests dynamically discover local models and rank/prioritize reasoning models (`deepseek-r1:7b` etc.) and coding models (`qwen2.5-coder:1.5b` etc.) first.
 - Ollama responses are capped to avoid unbounded buffering.
 
 ## API Surface
@@ -223,8 +234,8 @@ npm run compile
 For local AI remediation:
 
 ```bash
+ollama pull deepseek-r1:7b
 ollama pull qwen2.5-coder:1.5b
-ollama pull gemma:3
 ollama serve
 ```
 
