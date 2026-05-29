@@ -8,735 +8,87 @@
 <body>
   <div class="app">
 
-    <!-- ==================== VIEW: OVERVIEW ==================== -->
-    <div id="view-overview" class="view active">
-      <!-- Header -->
-      <header class="header">
-        <div class="header-left">
-          <div class="logo-ring">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-          </div>
-          <div>
-            <div class="app-name">PromptShield</div>
-            <div class="app-sub">AI Data Loss Prevention</div>
-          </div>
-        </div>
-        <div class="header-right-btns">
-          <button class="icon-btn" id="btn-settings-gear" title="Settings">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
-          </button>
-          <button class="icon-btn" id="btn-more-menu" title="More">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="1"/>
-              <circle cx="12" cy="5" r="1"/>
-              <circle cx="12" cy="19" r="1"/>
-            </svg>
-          </button>
-        </div>
-      </header>
-
-      <!-- Status Card -->
-      <div class="status-card-premium">
-        <div class="status-badge-circle">
-          <svg class="shield-check-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <!-- ── Header ── -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo-ring">
+          <!-- Yellow Shield Icon (Outlined) -->
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff8c00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            <polyline points="9 11 11 13 15 9"/>
           </svg>
         </div>
-        <div class="status-info-block">
-          <div class="status-title-large">Protected</div>
-          <div class="status-subtitle-row">
-            <span class="status-dot-active" id="status-dot"></span>
-            <span class="status-active-text" id="status-text">Monitoring Active</span>
-          </div>
-          <p class="status-description">All prompts are protected and sensitive data is blocked.</p>
-        </div>
-        <div class="status-card-footer">
-          <div class="status-footer-left">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-            <span id="last-checked-time">Last checked: Just now</span>
-          </div>
-          <a href="#" class="blue-link-btn" id="link-view-latest-details">View details <span class="arrow-sym">&gt;</span></a>
-        </div>
-      </div>
-
-      <!-- Stats Card -->
-      <div class="hero-stats-card">
-        <div class="hero-stats-left">
-          <div class="hero-chart-icon-box">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="20" x2="18" y2="10"/>
-              <line x1="12" y1="20" x2="12" y2="4"/>
-              <line x1="6" y1="20" x2="6" y2="14"/>
+        <div>
+          <div class="app-name">
+            PromptShield
+            <!-- Blue Verified Checkmark -->
+            <svg class="verified-icon" width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#00d4ff"/>
             </svg>
           </div>
-          <div>
-            <div class="hero-stat-number" id="stat-total">0</div>
-            <div class="hero-stat-label">Items Protected</div>
-          </div>
-        </div>
-        <div class="hero-stats-right">
-          <div class="trend-badge-pill">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-              <polyline points="18 15 12 9 6 15"/>
-            </svg>
-            <span>12%</span>
-          </div>
-          <div class="trend-subtext">vs this week</div>
+          <div class="app-sub">AI Data Loss Prevention</div>
         </div>
       </div>
+      <span class="version">v1.0.0</span>
+    </header>
 
-      <!-- Recent Activity Section -->
-      <div class="section-header">
-        <h2 class="section-title">Recent Activity</h2>
-        <a href="#" class="blue-link-btn" id="link-view-all-activity">View all</a>
+    <!-- ── Gateway Status Card ── -->
+    <div class="status-bar">
+      <div class="status-left">
+        <span class="status-dot offline" id="status-dot"></span>
+        <div>
+          <div class="status-label">GATEWAY</div>
+          <div class="status-value offline" id="status-text">GATEWAY OFFLINE</div>
+        </div>
       </div>
-      
-      <div class="activity-compact-list" id="feed-recent">
-        <div class="feed-empty">No activity yet</div>
+      <label class="toggle">
+        <input type="checkbox" id="shield-toggle" checked>
+        <span class="track"><span class="thumb"></span></span>
+      </label>
+    </div>
+
+    <!-- ── Stats Grid ── -->
+    <div class="section-label">PROTECTION SUMMARY</div>
+    <div class="stats-grid">
+      <!-- Row 1: Large Card -->
+      <div class="stat-card accent">
+        <div class="stat-num" id="stat-total">837</div>
+        <div class="stat-name">Total Redacted</div>
       </div>
-
-      <!-- Large View Analytics Button -->
-      <button class="analytics-action-btn" id="btn-goto-analytics">
-        <div class="btn-left-content">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="20" x2="18" y2="10"/>
-            <line x1="12" y1="20" x2="12" y2="4"/>
-            <line x1="6" y1="20" x2="6" y2="14"/>
-          </svg>
-          <span>View Analytics</span>
-        </div>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      </button>
-
-      <!-- Footer Info -->
-      <div class="overview-footer-bar">
-        <div class="local-shield-status">
-          <svg class="footer-shield-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            <polyline points="9 11 11 13 15 9"/>
-          </svg>
-          <span id="footer-note">Local Shield Active</span>
-        </div>
-        <div class="version-status">
-          <span class="green-status-dot"></span>
-          <span>v1.0.0</span>
-        </div>
+      <!-- Row 2: 3 Stat Tiles -->
+      <div class="stat-card c-cyan row-3">
+        <div class="stat-num" id="stat-keys">83</div>
+        <div class="stat-name">API Keys</div>
+      </div>
+      <div class="stat-card c-rose row-3">
+        <div class="stat-num" id="stat-phi">77</div>
+        <div class="stat-name">PHI / Health</div>
+      </div>
+      <div class="stat-card c-emerald row-3">
+        <div class="stat-num" id="stat-financial">82</div>
+        <div class="stat-name">Financial</div>
+      </div>
+      <!-- Row 3: 2 Stat Tiles -->
+      <div class="stat-card c-violet row-2">
+        <div class="stat-num" id="stat-pii">122</div>
+        <div class="stat-name">PII</div>
+      </div>
+      <div class="stat-card c-amber row-2">
+        <div class="stat-num" id="stat-creds">20</div>
+        <div class="stat-name">Credentials</div>
       </div>
     </div>
 
-    <!-- ==================== VIEW: ACTIVITY ==================== -->
-    <div id="view-activity" class="view">
-      <!-- Header -->
-      <header class="view-header">
-        <button class="back-btn btn-go-overview">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
-          </svg>
-        </button>
-        <div class="header-center">
-          <h1 class="view-title">Recent Activity</h1>
-          <p class="view-subtitle">Latest events detected by PromptShield</p>
-        </div>
-        <button class="icon-btn-filter" id="btn-activity-filter" title="Filter">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-          </svg>
-        </button>
-      </header>
-
-      <!-- Severity Filter Tabs -->
-      <div class="severity-filter-bar">
-        <div class="filter-tabs">
-          <button class="filter-tab active" data-filter="all" id="filter-btn-all">
-            <span class="filter-label"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> All</span>
-            <span class="filter-count" id="count-all">0</span>
-          </button>
-          <button class="filter-tab" data-filter="High" id="filter-btn-high">
-            <span class="filter-label"><span class="dot-red"></span> High</span>
-            <span class="filter-count" id="count-high">0</span>
-          </button>
-          <button class="filter-tab" data-filter="Medium" id="filter-btn-medium">
-            <span class="filter-label"><span class="dot-orange"></span> Medium</span>
-            <span class="filter-count" id="count-medium">0</span>
-          </button>
-          <button class="filter-tab" data-filter="Low" id="filter-btn-low">
-            <span class="filter-label"><span class="dot-green"></span> Low</span>
-            <span class="filter-count" id="count-low">0</span>
-          </button>
-        </div>
-        <div class="period-select-box">
-          <button class="period-btn" id="btn-activity-period">
-            <span>This Week</span>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <!-- Logs Feed -->
-      <div class="activity-scrollable-feed" id="feed-all">
-        <div class="feed-empty">No activity yet</div>
-      </div>
-
-      <!-- Information Banner -->
-      <div class="info-footer-banner">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          <polyline points="9 11 11 13 15 9"/>
-        </svg>
-        <span class="banner-text">All sensitive data is automatically masked and never leaves your device.</span>
-        <a href="#" class="learn-more-link">Learn more <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
-      </div>
+    <!-- ── Recent Activity ── -->
+    <div class="section-label" style="margin-top:16px">RECENT ACTIVITY</div>
+    <div class="feed" id="feed">
+      <div class="feed-empty">No activity yet</div>
     </div>
 
-    <!-- ==================== VIEW: ANALYTICS ==================== -->
-    <div id="view-analytics" class="view">
-      <!-- Header -->
-      <header class="view-header">
-        <button class="back-btn btn-go-overview">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
-          </svg>
-        </button>
-        <div class="header-center">
-          <h1 class="view-title">Protection Analytics</h1>
-          <p class="view-subtitle">Insights about your protected data</p>
-        </div>
-        <button class="icon-btn" id="btn-analytics-calendar" title="Calendar">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-        </button>
-      </header>
-
-      <!-- Time Frame Tabs -->
-      <div class="time-frame-pills">
-        <button class="time-pill active" data-period="week">This Week</button>
-        <button class="time-pill" data-period="month">This Month</button>
-        <button class="time-pill" data-period="quarter">This Quarter</button>
-        <button class="time-pill" data-period="all">All Time</button>
-      </div>
-
-      <!-- Main Analytics Container (Scrollable) -->
-      <div class="analytics-content-scroll">
-        <!-- Chart Card -->
-        <div class="analytics-card">
-          <div class="card-header-with-info">
-            <span class="card-section-label">Total Items Protected</span>
-            <svg class="info-tooltip-trigger" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="16" x2="12" y2="12"/>
-              <line x1="12" y1="8" x2="12.01" y2="8"/>
-            </svg>
-          </div>
-          <div class="chart-visual-block">
-            <div class="chart-numerical-summary">
-              <div class="chart-large-number" id="analytics-total-count">0</div>
-              <div class="chart-growth-label" id="analytics-growth-subtext"><span class="growth-up">↑ 12%</span> vs last week (0)</div>
-            </div>
-            <!-- Custom HTML Bar Chart -->
-            <div class="bar-chart-container">
-              <div class="bar-column">
-                <div class="bar-fill" style="height: 40px;" data-count="110"></div>
-                <span class="bar-label">Mon</span>
-              </div>
-              <div class="bar-column">
-                <div class="bar-fill" style="height: 30px;" data-count="85"></div>
-                <span class="bar-label">Tue</span>
-              </div>
-              <div class="bar-column">
-                <div class="bar-fill" style="height: 55px;" data-count="150"></div>
-                <span class="bar-label">Wed</span>
-              </div>
-              <div class="bar-column">
-                <div class="bar-fill" style="height: 75px;" data-count="200"></div>
-                <span class="bar-label">Thu</span>
-              </div>
-              <div class="bar-column">
-                <div class="bar-fill" style="height: 70px;" data-count="190"></div>
-                <span class="bar-label">Fri</span>
-              </div>
-              <div class="bar-column">
-                <div class="bar-fill" style="height: 65px;" data-count="180"></div>
-                <span class="bar-label">Sat</span>
-              </div>
-              <div class="bar-column active">
-                <div class="bar-fill animate-bar" style="height: 85px;" data-count="237"></div>
-                <span class="bar-label">Sun</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Protection Category Card -->
-        <div class="analytics-card">
-          <div class="card-header-with-info">
-            <span class="card-section-label">Protection by Category</span>
-            <svg class="info-tooltip-trigger" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="16" x2="12" y2="12"/>
-              <line x1="12" y1="8" x2="12.01" y2="8"/>
-            </svg>
-          </div>
-          <div class="category-breakdown-list">
-            <!-- PII -->
-            <div class="category-row" data-category="pii">
-              <div class="cat-left">
-                <div class="cat-icon-container purple">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                </div>
-                <span class="cat-name-label">PII</span>
-              </div>
-              <div class="cat-value-col" id="stat-pii">0</div>
-              <div class="cat-progress-container">
-                <div class="cat-progress-fill purple" style="width: 14.6%;" id="progress-pii"></div>
-              </div>
-              <div class="cat-percent-col" id="percent-pii">0%</div>
-              <div class="cat-trend-col up" id="trend-pii">↑ 5%</div>
-              <svg class="cat-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-            <!-- API Keys -->
-            <div class="category-row" data-category="keys">
-              <div class="cat-left">
-                <div class="cat-icon-container blue">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-                </div>
-                <span class="cat-name-label">API Keys</span>
-              </div>
-              <div class="cat-value-col" id="stat-keys">0</div>
-              <div class="cat-progress-container">
-                <div class="cat-progress-fill blue" style="width: 9.9%;" id="progress-keys"></div>
-              </div>
-              <div class="cat-percent-col" id="percent-keys">0%</div>
-              <div class="cat-trend-col down" id="trend-keys">↓ 8%</div>
-              <svg class="cat-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-            <!-- PHI -->
-            <div class="category-row" data-category="phi">
-              <div class="cat-left">
-                <div class="cat-icon-container red">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                </div>
-                <span class="cat-name-label">PHI / Health</span>
-              </div>
-              <div class="cat-value-col" id="stat-phi">0</div>
-              <div class="cat-progress-container">
-                <div class="cat-progress-fill red" style="width: 9.2%;" id="progress-phi"></div>
-              </div>
-              <div class="cat-percent-col" id="percent-phi">0%</div>
-              <div class="cat-trend-col down" id="trend-phi">↓ 3%</div>
-              <svg class="cat-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-            <!-- Financial -->
-            <div class="category-row" data-category="financial">
-              <div class="cat-left">
-                <div class="cat-icon-container green">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                </div>
-                <span class="cat-name-label">Financial</span>
-              </div>
-              <div class="cat-value-col" id="stat-financial">0</div>
-              <div class="cat-progress-container">
-                <div class="cat-progress-fill green" style="width: 9.8%;" id="progress-financial"></div>
-              </div>
-              <div class="cat-percent-col" id="percent-financial">0%</div>
-              <div class="cat-trend-col up" id="trend-financial">↑ 11%</div>
-              <svg class="cat-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-            <!-- Credentials -->
-            <div class="category-row" data-category="creds">
-              <div class="cat-left">
-                <div class="cat-icon-container orange">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                </div>
-                <span class="cat-name-label">Credentials</span>
-              </div>
-              <div class="cat-value-col" id="stat-creds">0</div>
-              <div class="cat-progress-container">
-                <div class="cat-progress-fill orange" style="width: 2.4%;" id="progress-creds"></div>
-              </div>
-              <div class="cat-percent-col" id="percent-creds">0%</div>
-              <div class="cat-trend-col up" id="trend-creds">↑ 2%</div>
-              <svg class="cat-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-          </div>
-        </div>
-
-        <!-- Trends Section -->
-        <div class="analytics-card">
-          <div class="card-header-with-info">
-            <span class="card-section-label">Trends</span>
-            <svg class="info-tooltip-trigger" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="16" x2="12" y2="12"/>
-              <line x1="12" y1="8" x2="12.01" y2="8"/>
-            </svg>
-          </div>
-          <div class="trends-columns-grid">
-            <!-- Col 1: Last Week -->
-            <div class="trend-col-box">
-              <div class="trend-icon-circle green">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                  <polyline points="9 11 11 13 15 9"/>
-                </svg>
-              </div>
-              <div class="trend-box-number" id="trend-prev-count">749</div>
-              <div class="trend-box-label">Last Week</div>
-              <div class="trend-box-date" id="trend-prev-date">May 11 - May 17</div>
-            </div>
-            <!-- Col 2: This Week -->
-            <div class="trend-col-box active">
-              <div class="trend-icon-circle blue">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
-              </div>
-              <div class="trend-box-number" id="trend-curr-count">837</div>
-              <div class="trend-box-label">This Week</div>
-              <div class="trend-box-date" id="trend-curr-date">May 18 - May 24</div>
-            </div>
-            <!-- Col 3: Change -->
-            <div class="trend-col-box">
-              <div class="trend-icon-circle purple">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-                  <polyline points="17 6 23 6 23 12"/>
-                </svg>
-              </div>
-              <div class="trend-box-number" id="trend-pct-change">+12%</div>
-              <div class="trend-box-label">Change</div>
-              <div class="trend-box-date">vs last week</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Banner inside analytics -->
-        <div class="info-footer-banner">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            <polyline points="9 11 11 13 15 9"/>
-          </svg>
-          <span class="banner-text">All sensitive data is processed locally. Nothing leaves your device. You're always in control.</span>
-          <a href="#" class="learn-more-link">Learn more <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
-        </div>
-
-        <!-- Bottom Action row -->
-        <div class="analytics-actions-row">
-          <button class="analytics-action-flat" id="btn-export-report">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            <span>Export Report</span>
-          </button>
-          <button class="analytics-action-flat danger" id="btn-reset">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              <line x1="10" y1="11" x2="10" y2="17"/>
-              <line x1="14" y1="11" x2="14" y2="17"/>
-            </svg>
-            <span>Clear Local Statistics</span>
-          </button>
-        </div>
-      </div>
+    <!-- ── Footer ── -->
+    <div class="footer">
+      <button class="btn-reset" id="btn-reset">Reset Statistics</button>
+      <div class="footer-note" id="footer-note">Backend offline — local masking active</div>
     </div>
-
-    <!-- ==================== VIEW: ACTIVITY DETAILS ==================== -->
-    <div id="view-details" class="view">
-      <!-- Header -->
-      <header class="view-header">
-        <button class="back-btn" id="btn-back-details">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
-          </svg>
-        </button>
-        <div class="header-center">
-          <h1 class="view-title">Activity Details</h1>
-        </div>
-        <button class="icon-btn" title="More Options">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="1"/>
-            <circle cx="12" cy="5" r="1"/>
-            <circle cx="12" cy="19" r="1"/>
-          </svg>
-        </button>
-      </header>
-
-      <!-- Scrollable Details Content -->
-      <div class="details-content-scroll" id="details-view-container">
-        <!-- dynamic inject details -->
-        <div class="details-card-platform">
-          <div class="details-logo-block">
-            <!-- Platform Logo -->
-            <div class="platform-logo-large placeholder-logo" id="details-platform-logo"></div>
-            <div class="platform-info-text">
-              <h2 class="platform-name-title" id="details-platform-name">ChatGPT</h2>
-              <div class="platform-meta-row">
-                <span class="platform-time" id="details-platform-time">2 mins ago</span>
-                <span class="bullet-divider">•</span>
-                <span class="risk-badge-text-only red" id="details-risk-badge">High</span>
-              </div>
-            </div>
-          </div>
-          <button class="view-in-activity-btn" id="btn-details-view-in-activity">
-            <span>View in activity</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </div>
-
-        <!-- Danger warning card -->
-        <div class="danger-box-card">
-          <div class="danger-header">
-            <svg class="warning-triangle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <div>
-              <div class="danger-title">Detected</div>
-              <div class="danger-subtitle" id="details-items-count-text">3 sensitive items found in your prompt</div>
-            </div>
-          </div>
-          <div class="danger-entities-list" id="details-entities-list">
-            <!-- API Key -->
-            <div class="danger-entity-row">
-              <div class="entity-left">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-                <span>API Key</span>
-              </div>
-              <div class="entity-badge red">High Risk</div>
-              <div class="entity-redacted"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> Redacted</div>
-            </div>
-          </div>
-          <div class="danger-footer">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            <span>These items were masked to prevent data leakage.</span>
-          </div>
-        </div>
-
-        <!-- Success card -->
-        <div class="success-box-card">
-          <svg class="success-check-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="22 4 12 14.01 9 11.01"/>
-          </svg>
-          <div class="success-body">
-            <div class="success-title">Action Taken</div>
-            <div class="success-subtitle">Successfully redacted</div>
-            <p class="success-desc">Sensitive data was masked before the response was sent.</p>
-          </div>
-        </div>
-
-        <!-- Info List Card -->
-        <div class="details-metadata-card">
-          <div class="metadata-header">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="16" x2="12" y2="12"/>
-              <line x1="12" y1="8" x2="12.01" y2="8"/>
-            </svg>
-            <span>Details</span>
-          </div>
-          <div class="metadata-rows">
-            <div class="meta-row">
-              <span class="meta-label">Date & Time</span>
-              <span class="meta-val" id="detail-meta-time">May 18, 2025 at 10:24 AM</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">Source</span>
-              <span class="meta-val" id="detail-meta-source">chat.openai.com</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">Request ID</span>
-              <span class="meta-val code-font" id="detail-meta-request-id">req_8f2d7a19c4b6</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">Device</span>
-              <span class="meta-val">This Device (Local)</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Notes Card -->
-        <div class="notes-box-card" id="btn-trigger-note-edit">
-          <div class="notes-header">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            <div class="notes-middle">
-              <div class="notes-title">Add Note</div>
-              <div class="notes-description" id="details-note-text">Add a note to remember more about this event.</div>
-            </div>
-            <svg class="notes-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-          </div>
-          <!-- Note input field (hidden by default) -->
-          <div class="notes-edit-area" id="notes-edit-block" style="display:none;">
-            <textarea class="notes-textarea" id="input-event-note" placeholder="Write a note..."></textarea>
-            <button class="notes-save-btn" id="btn-save-note">Save Note</button>
-          </div>
-        </div>
-
-        <!-- Bottom Action buttons -->
-        <div class="details-bottom-actions">
-          <button class="details-btn-danger" id="btn-delete-event">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-            <span>Clear this event</span>
-          </button>
-          <button class="details-btn-secondary" id="btn-copy-details">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-            <span>Copy details</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== VIEW: SETTINGS ==================== -->
-    <div id="view-settings" class="view">
-      <!-- Header -->
-      <header class="view-header">
-        <button class="back-btn btn-go-overview">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
-          </svg>
-        </button>
-        <div class="header-center">
-          <h1 class="view-title">Settings</h1>
-          <p class="view-subtitle">Configure PromptShield protection</p>
-        </div>
-      </header>
-
-      <!-- Settings List -->
-      <div class="settings-content-scroll">
-        <!-- Shield Toggle Option -->
-        <div class="settings-card-option">
-          <div class="option-label-block">
-            <div class="option-title">Shield Protection</div>
-            <div class="option-desc">Block and redact sensitive data from prompts</div>
-          </div>
-          <label class="toggle-premium">
-            <input type="checkbox" id="shield-toggle" checked>
-            <span class="track-premium"><span class="thumb-premium"></span></span>
-          </label>
-        </div>
-
-        <!-- Sensitivity Option -->
-        <div class="settings-card-group">
-          <span class="group-title">Risk Thresholds</span>
-          <div class="settings-select-row">
-            <div class="option-label-block">
-              <div class="option-title">Classification Sensitivity</div>
-              <div class="option-desc">Strictness of PII & Credentials checks</div>
-            </div>
-            <select class="settings-select" id="settings-sensitivity">
-              <option value="strict" selected>Strict (Block All)</option>
-              <option value="moderate">Moderate</option>
-              <option value="lax">Lax</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Local Endpoint Option -->
-        <div class="settings-card-group">
-          <span class="group-title">Local Engine</span>
-          <div class="settings-input-row">
-            <div class="option-label-block">
-              <div class="option-title">Gateway Port</div>
-              <div class="option-desc">Backend proxy monitoring URL</div>
-            </div>
-            <input type="text" class="settings-input-text" id="settings-backend-url" value="http://localhost:5000" placeholder="e.g. http://localhost:5000">
-          </div>
-        </div>
-
-        <!-- Testing & Diagnostics -->
-        <div class="settings-card-group">
-          <span class="group-title">Testing & Diagnostics</span>
-          <div class="settings-btn-row">
-            <button class="settings-action-btn-styled" id="btn-seed-samples">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-              </svg>
-              <span>Seed Sample Data (Redacted Logs)</span>
-            </button>
-            <p class="settings-btn-help">Pre-populates storage with mock events matching the screenshots, including ChatGPT, Gemini, Claude, and Notion AI alerts so you can test all tabs.</p>
-          </div>
-        </div>
-
-        <!-- Version Info -->
-        <div class="settings-version-info">
-          <div>PromptShield Extension v1.0.0</div>
-          <div id="settings-health-status">Backend Check: Checking...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== COMMON: BOTTOM TABS BAR ==================== -->
-    <nav class="bottom-tab-nav">
-      <button class="tab-item active" data-tab="overview" id="tab-btn-overview">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
-        <span>Overview</span>
-      </button>
-      <button class="tab-item" data-tab="activity" id="tab-btn-activity">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <polyline points="10 9 9 9 8 9"/>
-        </svg>
-        <span>Activity</span>
-      </button>
-      <button class="tab-item" data-tab="analytics" id="tab-btn-analytics">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="20" x2="18" y2="10"/>
-          <line x1="12" y1="20" x2="12" y2="4"/>
-          <line x1="6" y1="20" x2="6" y2="14"/>
-        </svg>
-        <span>Analytics</span>
-      </button>
-      <button class="tab-item" data-tab="settings" id="tab-btn-settings">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-        <span>Settings</span>
-      </button>
-    </nav>
 
   </div>
   <script src="popup.js"></script>
