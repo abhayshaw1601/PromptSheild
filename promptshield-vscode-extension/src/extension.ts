@@ -7,12 +7,14 @@ import { PROMPTSHIELD_DIAGNOSTIC_SOURCE, PROMPTSHIELD_RESTRICTED_GPL_CODE } from
 import { registerPromptShieldCodeActions } from "./promptShieldCodeActions";
 import { createPromptShieldLogger } from "./promptShieldLogger";
 import type { PromptShieldLogger } from "./promptShieldLogger";
+import { PromptShieldWebviewProvider } from "./promptShieldWebviewProvider";
 
 export function activate(context: vscode.ExtensionContext): void {
   const outputChannel = vscode.window.createOutputChannel("PromptShield");
   const logger = createPromptShieldLogger(outputChannel);
   const diagnosticCollection = vscode.languages.createDiagnosticCollection(PROMPTSHIELD_DIAGNOSTIC_SOURCE);
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  const webviewProvider = new PromptShieldWebviewProvider(context.extensionUri);
 
   logger.info("Extension activation started.", {
     extensionPath: context.extensionPath,
@@ -56,6 +58,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
       if (violations.length === 0) {
         statusBarItem.text = "Safe";
+        webviewProvider.updateViolations(document.uri.toString(), []);
         logger.info("No violations detected.", {
           uri: document.uri.toString(),
           statusBarText: statusBarItem.text
@@ -100,6 +103,15 @@ export function activate(context: vscode.ExtensionContext): void {
       });
 
       diagnosticCollection.set(document.uri, diagnostics);
+
+      const sidebarViolations = violations.map(v => ({
+        line: v.line,
+        message: `PromptShield Violation: ${v.violationType}`,
+        severity: v.severity.toUpperCase(),
+        code: v.violationType
+      }));
+      webviewProvider.updateViolations(document.uri.toString(), sidebarViolations);
+
       logger.info("Diagnostics applied.", {
         uri: document.uri.toString(),
         diagnosticCount: diagnostics.length
@@ -111,11 +123,39 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
+  // Register sidebar Webview View provider
+  const webviewViewDisposable = vscode.window.registerWebviewViewProvider(
+    "promptshield.sidebarView",
+    webviewProvider
+  );
+
+  // Sync sidebar list when switching tabs
+  const onActiveEditorChangeDisposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
+    if (editor) {
+      const uriString = editor.document.uri.toString();
+      const diagnostics = vscode.languages.getDiagnostics(editor.document.uri);
+      const promptShieldDiagnostics = diagnostics.filter(d => d.source === PROMPTSHIELD_DIAGNOSTIC_SOURCE);
+      
+      const sidebarViolations = promptShieldDiagnostics.map(d => ({
+        line: d.range.start.line + 1,
+        message: d.message,
+        severity: getSeverityString(d.severity),
+        code: String(d.code ?? "")
+      }));
+      
+      webviewProvider.updateViolations(uriString, sidebarViolations);
+    } else {
+      webviewProvider.clearViolations();
+    }
+  });
+
   context.subscriptions.push(
     outputChannel,
     diagnosticCollection,
     statusBarItem,
-    onSaveDisposable
+    onSaveDisposable,
+    webviewViewDisposable,
+    onActiveEditorChangeDisposable
   );
 
   logger.info("Extension activation finished.");
@@ -126,6 +166,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
   return undefined;
+}
+
+function getSeverityString(severity: vscode.DiagnosticSeverity): string {
+  switch (severity) {
+    case vscode.DiagnosticSeverity.Error: return "CRITICAL";
+    case vscode.DiagnosticSeverity.Warning: return "HIGH";
+    case vscode.DiagnosticSeverity.Information: return "MEDIUM";
+    case vscode.DiagnosticSeverity.Hint: return "LOW";
+    default: return "HIGH";
+  }
 }
 
 function mapViolationSeverity(severity: string): vscode.DiagnosticSeverity {

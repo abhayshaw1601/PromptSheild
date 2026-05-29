@@ -19,12 +19,34 @@
     "onLanguage:typescriptreact",
     "onLanguage:python",
     "onLanguage:go",
-    "onLanguage:java"
+    "onLanguage:java",
+    "onView:promptshield.sidebarView"
   ],
   "main": "./dist/extension.js",
   "extensionKind": [
     "workspace"
   ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "promptshield-explorer",
+          "title": "PromptShield",
+          "icon": "resources/shield.svg"
+        }
+      ]
+    },
+    "views": {
+      "promptshield-explorer": [
+        {
+          "type": "webview",
+          "id": "promptshield.sidebarView",
+          "name": "SecureCoder: Find and Fix",
+          "visibility": "visible"
+        }
+      ]
+    }
+  },
   "scripts": {
     "clean": "rimraf dist",
     "compile": "webpack --mode production",
