@@ -1,15 +1,15 @@
 'use strict';
 
-// PHI types from regexPatterns.js
-const PHI_TYPES = new Set(['MRN','NPI','INSURANCE_ID','ICD10','MEDICATION','LAB_VALUE','SSN','DOB']);
+const PHI_TYPES       = new Set(['MRN','NPI','INSURANCE_ID','ICD10','MEDICATION','LAB_VALUE','SSN','DOB']);
 const FINANCIAL_TYPES = new Set(['CREDIT_CARD','BANK_ACCOUNT','ROUTING_NUMBER','IBAN','SWIFT','EIN']);
-const API_TYPES = new Set(['API_KEY','CODE_SECRET','PASSWORD','DB_CONNECTION']);
-const PII_TYPES = new Set(['EMAIL','PHONE','NAME','IP_ADDRESS','IPV6','PASSPORT','DRIVERS_LICENSE']);
+const API_TYPES       = new Set(['API_KEY','CODE_SECRET']);
+const CRED_TYPES      = new Set(['PASSWORD','DB_CONNECTION']);
+const PII_TYPES       = new Set(['EMAIL','PHONE','NAME','IP_ADDRESS','IPV6','PASSPORT','DRIVERS_LICENSE']);
 
 function timeAgo(iso) {
   const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 60000)    return `${Math.floor(diff / 1000)}s ago`;
+  if (diff < 3600000)  return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
   return `${Math.floor(diff / 86400000)}d ago`;
 }
@@ -26,6 +26,18 @@ function friendlyType(t) {
     ICD10:'Diagnosis', MEDICATION:'Medication', LAB_VALUE:'Lab Value'
   };
   return map[t] || t;
+}
+
+// Safe sendMessage — resolves null on any error
+function sendMsg(payload) {
+  return new Promise(resolve => {
+    try {
+      chrome.runtime.sendMessage(payload, response => {
+        if (chrome.runtime.lastError) { resolve(null); return; }
+        resolve(response);
+      });
+    } catch (e) { resolve(null); }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -46,14 +58,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Gateway health ──────────────────────────────────────────
   function checkHealth() {
-    fetch('http://localhost:5000/health', { signal: AbortSignal.timeout(2000) })
+    // AbortSignal.timeout not available in older Chrome — use manual abort
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2000);
+
+    fetch('http://localhost:5000/health', { signal: ctrl.signal })
       .then(r => r.ok ? 'online' : 'offline')
       .catch(() => 'offline')
+      .finally(() => clearTimeout(timer))
       .then(state => {
         const online = state === 'online';
-        statusDot.className  = 'status-dot ' + (online ? 'online' : 'offline');
+        statusDot.className    = 'status-dot ' + (online ? 'online' : 'offline');
         statusText.textContent = online ? 'SHIELD SECURED' : 'GATEWAY OFFLINE';
-        statusText.className = 'status-value ' + (online ? 'online' : '');
+        statusText.className   = 'status-value' + (online ? ' online' : '');
         footerNote.textContent = online
           ? 'Local firewall active on port 5000'
           : 'Backend offline — local masking active';
@@ -62,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Load stats from audit log ───────────────────────────────
   function loadStats() {
-    chrome.runtime.sendMessage({ type: 'GET_LOGS' }, (logs) => {
+    sendMsg({ type: 'GET_LOGS' }).then(logs => {
       if (!Array.isArray(logs)) logs = [];
 
       let total = 0, keys = 0, phi = 0, financial = 0, pii = 0, creds = 0;
@@ -70,12 +87,14 @@ document.addEventListener('DOMContentLoaded', () => {
       logs.forEach(log => {
         if (!log.wasRedacted) return;
         total += log.fieldCount || 0;
+
+        // Each type counted in exactly ONE bucket — no double-counting
         (log.detectedTypes || []).forEach(t => {
-          if (API_TYPES.has(t))       keys++;
-          else if (PHI_TYPES.has(t))  phi++;
+          if (CRED_TYPES.has(t))          creds++;
+          else if (API_TYPES.has(t))      keys++;
+          else if (PHI_TYPES.has(t))      phi++;
           else if (FINANCIAL_TYPES.has(t)) financial++;
-          else if (PII_TYPES.has(t))  pii++;
-          if (t === 'PASSWORD' || t === 'DB_CONNECTION') creds++;
+          else if (PII_TYPES.has(t))      pii++;
         });
       });
 
@@ -102,11 +121,13 @@ document.addEventListener('DOMContentLoaded', () => {
         .slice(0, 4)
         .map(t => `<span class="feed-tag">${friendlyType(t)}</span>`)
         .join('');
+      // Sanitize platform string to prevent XSS
+      const platform = (log.platform || 'unknown').replace(/[<>&"]/g, '');
       return `
         <div class="feed-item">
           <div class="feed-dot"></div>
           <div class="feed-body">
-            <div class="feed-platform">${log.platform || 'unknown'}</div>
+            <div class="feed-platform">${platform}</div>
             <div class="feed-tags">${tags}</div>
           </div>
           <div class="feed-time">${timeAgo(log.timestamp)}</div>
@@ -116,6 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Toggle ──────────────────────────────────────────────────
   chrome.storage.local.get(['shieldActive'], r => {
+    if (chrome.runtime.lastError) return;
     toggle.checked = r.shieldActive !== false;
   });
   toggle.addEventListener('change', () => {
@@ -125,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Reset ───────────────────────────────────────────────────
   document.getElementById('btn-reset').addEventListener('click', () => {
     if (!confirm('Clear all shielding history?')) return;
-    chrome.runtime.sendMessage({ type: 'CLEAR_LOGS' }, () => loadStats());
+    sendMsg({ type: 'CLEAR_LOGS' }).then(() => loadStats());
   });
 
   // ── Init ────────────────────────────────────────────────────

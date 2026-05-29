@@ -12,19 +12,26 @@
   }
 
   function getGeminiInput() {
-    // Prefer the Quill editor div (what Gemini actually uses)
     return (
-      document.querySelector('.ql-editor') ||
-      document.querySelector('div[role="textbox"][aria-multiline="true"]') ||
+      document.querySelector(PromptShield.GEMINI_INPUT_SELECTOR) ||
+      document.querySelector(PromptShield.GEMINI_INPUT_SELECTOR_FALLBACK) ||
+      null
+    );
+  }
+
+  // Claude uses a contenteditable div with data-placeholder
+  function getClaudeInput() {
+    return (
+      document.querySelector('div[contenteditable="true"].ProseMirror') ||
+      document.querySelector('div[contenteditable="true"][data-placeholder]') ||
+      document.querySelector('fieldset div[contenteditable="true"]') ||
       null
     );
   }
 
   function getInputElement(platform) {
-    if (platform === 'gemini') {
-      return getGeminiInput();
-    }
-
+    if (platform === 'gemini') return getGeminiInput();
+    if (platform === 'claude') return getClaudeInput();
     return getChatGPTInput();
   }
 

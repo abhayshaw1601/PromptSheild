@@ -1,20 +1,18 @@
 (function (root) {
   const PromptShield = root.PromptShield || (root.PromptShield = {});
   let keydownAttached = false;
-  let clickAttached = false;
+  let clickAttached   = false;
 
   function isSendControl(target) {
     return Boolean(
-      target &&
-        target.closest &&
-        target.closest([
-          'button[aria-label="Send message"]',
-          'button[aria-label="Send prompt"]',
-          '[data-testid="send-button"]',
-          'button[aria-label="Submit message"]',
-          'button[data-mat-icon-name="send"]',
-          '.send-button'
-        ].join(', '))
+      target && target.closest && target.closest([
+        'button[data-testid="send-button"]',
+        'button[aria-label="Send message"]',
+        'button[aria-label="Send Message"]',
+        'button[aria-label="Send prompt"]',
+        'button[data-mat-icon-name="send"]',
+        '.send-button',
+      ].join(', '))
     );
   }
 
@@ -25,56 +23,53 @@
     return PromptShield.hasLocalSensitiveData(rawText);
   }
 
+  // Keydown safety net — intercepts Enter before the page sees it
   function attachKeydownSafetyNet(platform) {
     if (keydownAttached) return;
     keydownAttached = true;
 
-    document.addEventListener(
-      'keydown',
-      async (event) => {
-        if (event.key !== 'Enter' || event.shiftKey) return;
-        if (PromptShield.isSanitizing) return;
+    document.addEventListener('keydown', async (event) => {
+      if (event.key !== 'Enter' || event.shiftKey) return;
+      if (PromptShield.isSanitizing) return;  // injection in progress
+      if (PromptShield.isSubmitting)  return;  // submit in progress — don't re-intercept
 
-        const inputEl = PromptShield.getInputElement(platform);
-        if (!shouldHandleSensitiveSubmit(inputEl)) return;
+      const inputEl = PromptShield.getInputElement(platform);
+      if (!shouldHandleSensitiveSubmit(inputEl)) return;
 
-        // Block the raw submit, sanitize, then trigger submit via MAIN world
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        PromptShield.clearDebounceTimer();
-        await PromptShield.runPipeline(inputEl, platform, { autoSubmit: true });
-      },
-      true
-    );
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      PromptShield.clearDebounceTimer();
+      await PromptShield.runPipeline(inputEl, platform, { autoSubmit: true });
+    }, true);
   }
 
+  // Click safety net — intercepts send-button clicks
   function attachClickSafetyNet(platform) {
     if (clickAttached) return;
     clickAttached = true;
 
-    document.addEventListener(
-      'click',
-      async (event) => {
-        if (!isSendControl(event.target)) return;
-        if (PromptShield.isSanitizing) return;
+    document.addEventListener('click', async (event) => {
+      if (!isSendControl(event.target)) return;
+      if (PromptShield.isSanitizing) return;
+      if (PromptShield.isSubmitting)  return;
 
-        const inputEl = PromptShield.getInputElement(platform);
-        if (!shouldHandleSensitiveSubmit(inputEl)) return;
+      const inputEl = PromptShield.getInputElement(platform);
+      if (!shouldHandleSensitiveSubmit(inputEl)) return;
 
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        PromptShield.clearDebounceTimer();
-        await PromptShield.runPipeline(inputEl, platform, { autoSubmit: true });
-      },
-      true
-    );
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      PromptShield.clearDebounceTimer();
+      await PromptShield.runPipeline(inputEl, platform, { autoSubmit: true });
+    }, true);
   }
 
-  const platform = window.location.hostname.includes('gemini') ? 'gemini' : 'chatgpt';
+  const hostname = window.location.hostname;
+  const platform = hostname.includes('gemini') ? 'gemini'
+                 : hostname.includes('claude')  ? 'claude'
+                 : 'chatgpt';
+
   PromptShield.showPageBadge();
   PromptShield.startObserver(platform);
   attachKeydownSafetyNet(platform);
   attachClickSafetyNet(platform);
-  PromptShield.attachKeydownSafetyNet = attachKeydownSafetyNet;
-  PromptShield.attachClickSafetyNet = attachClickSafetyNet;
 })(globalThis);
