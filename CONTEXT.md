@@ -139,6 +139,32 @@ sequenceDiagram
     end
 ```
 
+## AST Structural Fingerprinting & Hashing Pipeline
+
+To accurately detect GPL-licensed plagiarism and copyleft functional code segments regardless of changes in variable naming, formatting, or function ordering, PromptShield employs an advanced AST extraction, normalization, sliding trigram, and Bloom filter verification pipeline:
+
+```mermaid
+flowchart TD
+    Source["Raw Source Code (JS/TS)"] --> TS_Norm["TypeScript Normalizer<br/>(Removes annotations, interfaces, generics)"]
+    TS_Norm --> Acorn["Acorn AST Parser<br/>(ECMA latest, modules)"]
+    Acorn --> Traversal["Iterative Stack Traversal<br/>(WeakSet Cycle Guard)"]
+    Traversal --> Tokenizer["Structural Tokenizer<br/>(Keeps Node Types, discards identifier names)"]
+    
+    subgraph Slicing & Hashing ["Slicing & Hashing Pipeline"]
+        Tokenizer --> Tokens["Token Stream: e.g. [FunctionDec, BlockOpen, IfStatement]"]
+        Tokens --> Slicer["Rolling Trigram Window Slicer<br/>(adjacent 3-token slices: A_B_C)"]
+        Slicer --> Trigrams["Rolling Trigram Chunks"]
+        Trigrams --> FNV1a["FNV-1a 32-bit Hashing Engine<br/>(Stable 32-bit FNV integers)"]
+    end
+    
+    FNV1a --> Hashes["Document Trigram Hashes"]
+    Hashes --> BloomCheck["Rolling Window Bloom Filter Checker<br/>(Queries 10MB filter.bin signature DB)"]
+    BloomCheck --> Score["Similarity Ratio Checker<br/>(Rolling Jaccard similarity index)"]
+    Score --> Decision{Is Similarity >= 0.98?}
+    Decision -->|Yes| Violation["Raise Compliance Violation<br/>(Flags file & exact line context)"]
+    Decision -->|No| Safe["Mark Code Segment Safe"]
+```
+
 ## VS Code Extension Details
 
 Path: `promptshield-vscode-extension/`
