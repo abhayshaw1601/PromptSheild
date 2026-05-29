@@ -1,31 +1,18 @@
 (function (root) {
   const PromptShield = root.PromptShield || (root.PromptShield = {});
-  let clickAttached = false;
-
-  // ── Workflow ──────────────────────────────────────────────────────────────────
-  // 1. User types → 800ms pause → debounce fires → mask → TRIGGER_SUBMIT (MAIN world)
-  // 2. User clicks send with unmasked text → intercept → mask → TRIGGER_SUBMIT
-  //
-  // We do NOT intercept Enter keydown anymore — that caused infinite loops because
-  // the synthetic Enter we dispatched for submit re-triggered the listener.
-  // The debounce in interceptor.js handles the "pause and auto-send" flow entirely.
-  // ─────────────────────────────────────────────────────────────────────────────
+  let keydownAttached = false;
+  let clickAttached   = false;
 
   function isSendControl(target) {
     return Boolean(
-      target &&
-        target.closest &&
-        target.closest([
-          // ChatGPT
-          'button[data-testid="send-button"]',
-          'button[aria-label="Send message"]',
-          // Claude
-          'button[aria-label="Send Message"]',
-          // Gemini
-          'button[aria-label="Send prompt"]',
-          'button[data-mat-icon-name="send"]',
-          '.send-button',
-        ].join(', '))
+      target && target.closest && target.closest([
+        'button[data-testid="send-button"]',
+        'button[aria-label="Send message"]',
+        'button[aria-label="Send Message"]',
+        'button[aria-label="Send prompt"]',
+        'button[data-mat-icon-name="send"]',
+        '.send-button',
+      ].join(', '))
     );
   }
 
@@ -36,7 +23,27 @@
     return PromptShield.hasLocalSensitiveData(rawText);
   }
 
-  // Click interceptor: catches manual send-button clicks when text isn't masked yet
+  // Keydown safety net — intercepts Enter before the page sees it
+  function attachKeydownSafetyNet(platform) {
+    if (keydownAttached) return;
+    keydownAttached = true;
+
+    document.addEventListener('keydown', async (event) => {
+      if (event.key !== 'Enter' || event.shiftKey) return;
+      if (PromptShield.isSanitizing) return;  // injection in progress
+      if (PromptShield.isSubmitting)  return;  // submit in progress — don't re-intercept
+
+      const inputEl = PromptShield.getInputElement(platform);
+      if (!shouldHandleSensitiveSubmit(inputEl)) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      PromptShield.clearDebounceTimer();
+      await PromptShield.runPipeline(inputEl, platform, { autoSubmit: true });
+    }, true);
+  }
+
+  // Click safety net — intercepts send-button clicks
   function attachClickSafetyNet(platform) {
     if (clickAttached) return;
     clickAttached = true;
@@ -44,11 +51,11 @@
     document.addEventListener('click', async (event) => {
       if (!isSendControl(event.target)) return;
       if (PromptShield.isSanitizing) return;
+      if (PromptShield.isSubmitting)  return;
 
       const inputEl = PromptShield.getInputElement(platform);
       if (!shouldHandleSensitiveSubmit(inputEl)) return;
 
-      // Block this click, mask, then auto-submit via MAIN world
       event.preventDefault();
       event.stopImmediatePropagation();
       PromptShield.clearDebounceTimer();
@@ -63,5 +70,6 @@
 
   PromptShield.showPageBadge();
   PromptShield.startObserver(platform);
+  attachKeydownSafetyNet(platform);
   attachClickSafetyNet(platform);
 })(globalThis);

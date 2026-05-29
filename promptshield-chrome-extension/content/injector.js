@@ -1,7 +1,9 @@
 (function (root) {
   const PromptShield = root.PromptShield || (root.PromptShield = {});
 
-  PromptShield.isSanitizing = false;
+  // Two flags — both must be false before any pipeline step runs
+  PromptShield.isSanitizing = false;  // true during text injection
+  PromptShield.isSubmitting = false;  // true during auto-submit event dispatch
 
   function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -18,32 +20,23 @@
     } catch (e) { /* ignore */ }
   }
 
-  // ─── TEXT INJECTION ──────────────────────────────────────────────────────────
-  // Works for Quill (Gemini), ProseMirror (Claude), and React textarea (ChatGPT).
-  // execCommand fires a real browser InputEvent that all three frameworks respond to.
+  // ─── INJECTION ───────────────────────────────────────────────────────────────
+  // Does NOT dispatch any extra events — autoSubmit handles all event dispatching.
+  // isSanitizing is cleared here; isSubmitting is set by autoSubmit immediately after.
   async function injectSanitizedText(inputEl, sanitizedText) {
     PromptShield.isSanitizing = true;
 
     inputEl.focus();
-    moveCursorToEnd(inputEl);
-
     document.execCommand('selectAll', false, null);
-    await wait(30);
+    document.execCommand('delete', false, null);
+    await wait(50);
     document.execCommand('insertText', false, sanitizedText);
-    await wait(30);
-
-    // Belt-and-suspenders: explicit InputEvent while isSanitizing is still true
-    // so the interceptor's input listener ignores it
-    inputEl.dispatchEvent(new InputEvent('input', {
-      inputType: 'insertText',
-      data: sanitizedText,
-      bubbles: true, cancelable: true, composed: true
-    }));
 
     moveCursorToEnd(inputEl);
-    await wait(150);
+    await wait(100);
 
     PromptShield.isSanitizing = false;
+    // isSubmitting will be set by the caller (runPipeline) before autoSubmit fires
   }
 
   PromptShield.injectSanitizedText = injectSanitizedText;
