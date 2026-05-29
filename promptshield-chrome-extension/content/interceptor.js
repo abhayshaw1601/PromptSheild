@@ -71,13 +71,9 @@
     );
 
     if (options.autoSubmit) {
-      if (platform === 'gemini') {
-        // Gemini needs MAIN world execution to bypass Angular's isTrusted check
-        await sendChromeMessage({ type: 'TRIGGER_SUBMIT' });
-      } else {
-        // Claude / ChatGPT use React with native disabled — direct autoSubmit works
-        await PromptShield.autoSubmit(platform);
-      }
+      // All platforms: ask background to run in MAIN world.
+      // MAIN world can call framework internals directly — no fake events, no loops.
+      await sendChromeMessage({ type: 'TRIGGER_SUBMIT', platform });
     }
 
     return response;

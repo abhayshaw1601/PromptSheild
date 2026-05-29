@@ -1,22 +1,30 @@
 (function (root) {
   const PromptShield = root.PromptShield || (root.PromptShield = {});
-  let keydownAttached = false;
   let clickAttached = false;
+
+  // ── Workflow ──────────────────────────────────────────────────────────────────
+  // 1. User types → 800ms pause → debounce fires → mask → TRIGGER_SUBMIT (MAIN world)
+  // 2. User clicks send with unmasked text → intercept → mask → TRIGGER_SUBMIT
+  //
+  // We do NOT intercept Enter keydown anymore — that caused infinite loops because
+  // the synthetic Enter we dispatched for submit re-triggered the listener.
+  // The debounce in interceptor.js handles the "pause and auto-send" flow entirely.
+  // ─────────────────────────────────────────────────────────────────────────────
 
   function isSendControl(target) {
     return Boolean(
       target &&
         target.closest &&
         target.closest([
+          // ChatGPT
+          'button[data-testid="send-button"]',
           'button[aria-label="Send message"]',
-          'button[aria-label="Send prompt"]',
-          '[data-testid="send-button"]',
-          'button[aria-label="Submit message"]',
-          'button[data-mat-icon-name="send"]',
-          '.send-button',
           // Claude
           'button[aria-label="Send Message"]',
-          'button[data-testid="send-button"]'
+          // Gemini
+          'button[aria-label="Send prompt"]',
+          'button[data-mat-icon-name="send"]',
+          '.send-button',
         ].join(', '))
     );
   }
@@ -28,60 +36,32 @@
     return PromptShield.hasLocalSensitiveData(rawText);
   }
 
-  function attachKeydownSafetyNet(platform) {
-    if (keydownAttached) return;
-    keydownAttached = true;
-
-    document.addEventListener(
-      'keydown',
-      async (event) => {
-        if (event.key !== 'Enter' || event.shiftKey) return;
-        if (PromptShield.isSanitizing) return;
-        if (PromptShield.isSubmitting) return;   // auto-submit in progress — don't re-intercept
-
-        const inputEl = PromptShield.getInputElement(platform);
-        if (!shouldHandleSensitiveSubmit(inputEl)) return;
-
-        // Block the raw submit, sanitize, then trigger submit via MAIN world
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        PromptShield.clearDebounceTimer();
-        await PromptShield.runPipeline(inputEl, platform, { autoSubmit: true });
-      },
-      true
-    );
-  }
-
+  // Click interceptor: catches manual send-button clicks when text isn't masked yet
   function attachClickSafetyNet(platform) {
     if (clickAttached) return;
     clickAttached = true;
 
-    document.addEventListener(
-      'click',
-      async (event) => {
-        if (!isSendControl(event.target)) return;
-        if (PromptShield.isSanitizing) return;
+    document.addEventListener('click', async (event) => {
+      if (!isSendControl(event.target)) return;
+      if (PromptShield.isSanitizing) return;
 
-        const inputEl = PromptShield.getInputElement(platform);
-        if (!shouldHandleSensitiveSubmit(inputEl)) return;
+      const inputEl = PromptShield.getInputElement(platform);
+      if (!shouldHandleSensitiveSubmit(inputEl)) return;
 
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        PromptShield.clearDebounceTimer();
-        await PromptShield.runPipeline(inputEl, platform, { autoSubmit: true });
-      },
-      true
-    );
+      // Block this click, mask, then auto-submit via MAIN world
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      PromptShield.clearDebounceTimer();
+      await PromptShield.runPipeline(inputEl, platform, { autoSubmit: true });
+    }, true);
   }
 
   const hostname = window.location.hostname;
   const platform = hostname.includes('gemini') ? 'gemini'
                  : hostname.includes('claude')  ? 'claude'
                  : 'chatgpt';
+
   PromptShield.showPageBadge();
   PromptShield.startObserver(platform);
-  attachKeydownSafetyNet(platform);
   attachClickSafetyNet(platform);
-  PromptShield.attachKeydownSafetyNet = attachKeydownSafetyNet;
-  PromptShield.attachClickSafetyNet = attachClickSafetyNet;
 })(globalThis);
